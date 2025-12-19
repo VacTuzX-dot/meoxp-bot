@@ -422,11 +422,60 @@ async def purge_messages(ctx, amount: int = None):
         return
     
     try:
-        # +1 เพื่อรวมคำสั่ง purge ด้วย
-        deleted = await ctx.channel.purge(limit=amount + 1, bulk=True)
+        # ลบข้อความคำสั่งก่อน
+        await ctx.message.delete()
         
-        # ส่งข้อความยืนยันและลบหลัง 3 วินาที
-        confirm_msg = await ctx.send(f"🗑️ ลบไป **{len(deleted) - 1}** ข้อความแล้วค่ะ~ ✨")
+        total_deleted = 0
+        remaining = amount
+        batch_size = 100  # Discord limit per bulk delete
+        
+        # แสดงสถานะเริ่มต้น
+        status_msg = await ctx.send(f"🗑️ กำลังลบ {amount} ข้อความ... (0/{amount})")
+        
+        while remaining > 0:
+            current_batch = min(batch_size, remaining)
+            
+            try:
+                deleted = await ctx.channel.purge(limit=current_batch, bulk=True)
+                deleted_count = len(deleted)
+                
+                # ถ้าไม่มีข้อความให้ลบแล้ว
+                if deleted_count == 0:
+                    break
+                    
+                total_deleted += deleted_count
+                remaining -= deleted_count
+                
+                # อัปเดตสถานะ
+                try:
+                    await status_msg.edit(content=f"🗑️ กำลังลบ... ({total_deleted}/{amount})")
+                except:
+                    pass  # ข้อความสถานะอาจถูกลบไปแล้ว
+                
+                # Delay ระหว่าง batch เพื่อหลีก rate limit
+                if remaining > 0:
+                    await asyncio.sleep(1.5)
+                    
+            except discord.NotFound:
+                # ข้อความถูกลบไปแล้ว ข้ามไป
+                continue
+            except discord.HTTPException as e:
+                if '429' in str(e) or 'rate limit' in str(e).lower():
+                    # Rate limited - รอแล้วลองใหม่
+                    await asyncio.sleep(3)
+                    continue
+                elif 'older than 14 days' in str(e):
+                    break  # ไม่สามารถลบข้อความเก่าได้
+                else:
+                    raise
+        
+        # ลบ status message และส่งยืนยัน
+        try:
+            await status_msg.delete()
+        except:
+            pass
+            
+        confirm_msg = await ctx.send(f"🗑️ ลบไป **{total_deleted}** ข้อความแล้วค่ะ~ ✨")
         await asyncio.sleep(3)
         await confirm_msg.delete()
         
