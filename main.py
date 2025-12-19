@@ -22,7 +22,7 @@ bot = commands.Bot(command_prefix='!!', intents=intents, help_command=None)
 
 # Setup สำหรับ yt-dlp (โหลดเพลง) - Optimized for speed + Playlist support
 ytdl_format_options = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
     'restrictfilenames': True,
     'noplaylist': False,  # อนุญาต playlist
     'nocheckcertificate': True,
@@ -33,22 +33,22 @@ ytdl_format_options = {
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
     'extract_flat': 'in_playlist',  # ดึงข้อมูล playlist เร็วขึ้น
-    'extractor_args': {'youtube': {'player_client': ['android_music', 'web']}},  # YouTube Music support
+    'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
 }
 
 # สำหรับดึงเพลงเดี่ยว (ไม่ใช้ extract_flat)
 ytdl_single_options = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
     'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
-    'ignoreerrors': False,
+    'ignoreerrors': True,
     'logtostderr': False,
     'quiet': True,
     'no_warnings': True,
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
-    'extractor_args': {'youtube': {'player_client': ['android_music', 'web']}},
+    'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
 }
 
 ffmpeg_options = {
