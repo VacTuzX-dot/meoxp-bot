@@ -223,7 +223,7 @@ class HelpView(ui.View):
             "description": "คำสั่งสำหรับ Owner เท่านั้นนะคะ~",
             "fields": [
                 ("!!cmd <คำสั่ง>", "รันคำสั่ง Shell บน Server ค่ะ"),
-                ("!!purge <จำนวน>", "ลบข้อความแบบไม่ถูก log (1-100) ค่ะ"),
+                ("!!purge <จำนวน>", "ลบข้อความแบบไม่ถูก log (1-1000) ค่ะ"),
                 ("!!help", "แสดงเมนูช่วยเหลือนี้ค่ะ"),
             ]
         },
@@ -417,8 +417,8 @@ async def purge_messages(ctx, amount: int = None):
         await ctx.send("❌ จำนวนต้องมากกว่า 0 ค่ะ~")
         return
     
-    if amount > 100:
-        await ctx.send("❌ ลบได้ไม่เกิน 100 ข้อความต่อครั้งนะคะ~")
+    if amount > 1000:
+        await ctx.send("❌ ลบได้ไม่เกิน 1000 ข้อความต่อครั้งนะคะ~")
         return
     
     try:
