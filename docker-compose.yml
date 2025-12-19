@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  discord-bot:
+    build: .
+    container_name: meoxp-discord-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Port 4444 external -> 80 internal (if needed for health checks)
+    ports:
+      - "4444:80"
+    volumes:
+      - ./logs:/app/logs

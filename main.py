@@ -69,7 +69,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print('------ System Online on macOS ------')
+    print('------ System Online ------')
 
 # --- Zone 1: Automation & System Command ---
 @bot.command(name='cmd')
@@ -79,7 +79,7 @@ async def shell_command(ctx, *, command):
         await ctx.send("⛔ Access Denied: คุณไม่มีสิทธิ์สั่ง Server นี้")
         return
 
-    await ctx.send(f"💻 Mac Executing: `{command}`...")
+    await ctx.send(f"💻 Executing: `{command}`...")
     
     try:
         # รันคำสั่งจริงบน Mac
