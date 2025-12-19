@@ -471,7 +471,7 @@ async def play(ctx, *, url):
                 playlist_title = data.get('title', 'Playlist')
                 
                 # จำกัด 50 เพลง
-                max_songs = 50
+                max_songs = 200
                 entries = entries[:max_songs]
                 
                 await status_msg.edit(content=f"🎵 พบ {len(entries)} เพลง กำลังเพิ่มเข้า Queue ค่ะ...")
