@@ -223,6 +223,7 @@ class HelpView(ui.View):
             "description": "คำสั่งสำหรับ Owner เท่านั้นนะคะ~",
             "fields": [
                 ("!!cmd <คำสั่ง>", "รันคำสั่ง Shell บน Server ค่ะ"),
+                ("!!purge <จำนวน>", "ลบข้อความแบบไม่ถูก log (1-100) ค่ะ"),
                 ("!!help", "แสดงเมนูช่วยเหลือนี้ค่ะ"),
             ]
         },
@@ -400,7 +401,45 @@ async def send_text_to(ctx, target: str, *, message: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
 
 
-# --- Zone 4: Music with Queue System ---
+# --- Zone 4: Message Management ---
+@bot.command(name='purge', aliases=['clear_msg', 'del'])
+async def purge_messages(ctx, amount: int = None):
+    """ลบข้อความแบบ bulk delete (ไม่ถูก log โดย bot อื่น)"""
+    if ctx.author.id != MY_OWNER_ID:
+        await ctx.send("⛔ ขอโทษนะคะ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ค่ะ 🙏")
+        return
+    
+    if amount is None:
+        await ctx.send("❌ กรุณาระบุจำนวนข้อความที่ต้องการลบค่ะ เช่น `!!purge 10`")
+        return
+    
+    if amount < 1:
+        await ctx.send("❌ จำนวนต้องมากกว่า 0 ค่ะ~")
+        return
+    
+    if amount > 100:
+        await ctx.send("❌ ลบได้ไม่เกิน 100 ข้อความต่อครั้งนะคะ~")
+        return
+    
+    try:
+        # +1 เพื่อรวมคำสั่ง purge ด้วย
+        deleted = await ctx.channel.purge(limit=amount + 1, bulk=True)
+        
+        # ส่งข้อความยืนยันและลบหลัง 3 วินาที
+        confirm_msg = await ctx.send(f"🗑️ ลบไป **{len(deleted) - 1}** ข้อความแล้วค่ะ~ ✨")
+        await asyncio.sleep(3)
+        await confirm_msg.delete()
+        
+    except discord.Forbidden:
+        await ctx.send("❌ หนูไม่มีสิทธิ์ลบข้อความในช่องนี้ค่ะ 🥺")
+    except discord.HTTPException as e:
+        if 'older than 14 days' in str(e):
+            await ctx.send("❌ ไม่สามารถ bulk delete ข้อความที่เก่ากว่า 14 วันได้ค่ะ~")
+        else:
+            await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
+
+
+# --- Zone 5: Music with Queue System ---
 def get_queue(guild_id):
     if guild_id not in music_queues:
         music_queues[guild_id] = deque()
