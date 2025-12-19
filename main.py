@@ -18,7 +18,7 @@ MY_OWNER_ID = 942687569693528084
 # Setup Bot
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
 # Setup สำหรับ yt-dlp (โหลดเพลง) - คุณภาพสูงสุด
 ytdl_format_options = {
