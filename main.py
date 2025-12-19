@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import ui
 import os
 import subprocess
 from dotenv import load_dotenv
@@ -12,8 +13,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 # ใส่ Discord ID ของคุณคนเดียวเท่านั้น (เพื่อความปลอดภัยตอนสั่งรัน Command)
-# วิธีหา: คลิกขวาที่ชื่อตัวเองใน Discord -> Copy User ID (ต้องเปิด Developer Mode ก่อน)
-MY_OWNER_ID = 942687569693528084  # <--- แก้ตรงนี้เป็น ID คุณ!!!
+MY_OWNER_ID = 942687569693528084
 
 # Setup Bot
 intents = discord.Intents.default()
@@ -36,19 +36,18 @@ ytdl_format_options = {
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'opus',
-        'preferredquality': '320',  # Bitrate สูงสุด
+        'preferredquality': '320',
     }],
 }
 ffmpeg_options = {
-    'options': '-vn -b:a 320k',  # Bitrate 320kbps
-    # แก้ปัญหาเพลงกระตุก
+    'options': '-vn -b:a 320k',
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
 # Music Queue System
-music_queues = {}  # guild_id -> deque of songs
-now_playing = {}   # guild_id -> current song info
+music_queues = {}
+now_playing = {}
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -66,127 +65,241 @@ class YTDLSource(discord.PCMVolumeTransformer):
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
 
+
+# ==================== UI Components ====================
+
+class MusicControlView(ui.View):
+    """ปุ่มควบคุมเพลงแบบ Interactive"""
+    def __init__(self, ctx):
+        super().__init__(timeout=300)  # 5 นาที
+        self.ctx = ctx
+
+    @ui.button(label="⏸️ หยุดชั่วคราว", style=discord.ButtonStyle.secondary)
+    async def pause_button(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+            interaction.guild.voice_client.pause()
+            button.label = "▶️ เล่นต่อ"
+            button.style = discord.ButtonStyle.success
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send("⏸️ หยุดเพลงชั่วคราวค่ะ", ephemeral=True)
+        elif interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
+            interaction.guild.voice_client.resume()
+            button.label = "⏸️ หยุดชั่วคราว"
+            button.style = discord.ButtonStyle.secondary
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send("▶️ เล่นเพลงต่อค่ะ", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ", ephemeral=True)
+
+    @ui.button(label="⏭️ ข้าม", style=discord.ButtonStyle.primary)
+    async def skip_button(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.guild.voice_client and (interaction.guild.voice_client.is_playing() or interaction.guild.voice_client.is_paused()):
+            interaction.guild.voice_client.stop()
+            await interaction.response.send_message("⏭️ ข้ามไปเพลงถัดไปค่ะ~", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ ไม่มีเพลงที่จะข้ามนะคะ", ephemeral=True)
+
+    @ui.button(label="📋 ดู Queue", style=discord.ButtonStyle.secondary)
+    async def queue_button(self, interaction: discord.Interaction, button: ui.Button):
+        queue = get_queue(interaction.guild.id)
+        current = now_playing.get(interaction.guild.id)
+        
+        if not current and len(queue) == 0:
+            await interaction.response.send_message("📭 Queue ว่างเปล่าค่ะ", ephemeral=True)
+            return
+        
+        embed = discord.Embed(title="🎵 รายการเพลง", color=0xFF69B4)
+        
+        if current:
+            embed.add_field(
+                name="🎶 กำลังเล่น",
+                value=f"**{current['title']}**\nขอโดย: {current['requester']}",
+                inline=False
+            )
+        
+        if len(queue) > 0:
+            queue_list = ""
+            for i, song in enumerate(list(queue)[:5], 1):
+                queue_list += f"`{i}.` {song['title']}\n"
+            if len(queue) > 5:
+                queue_list += f"\n... และอีก {len(queue) - 5} เพลงค่ะ"
+            embed.add_field(name="📋 ถัดไป", value=queue_list, inline=False)
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @ui.button(label="🗑️ ล้าง Queue", style=discord.ButtonStyle.danger)
+    async def clear_button(self, interaction: discord.Interaction, button: ui.Button):
+        queue = get_queue(interaction.guild.id)
+        queue.clear()
+        await interaction.response.send_message("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~", ephemeral=True)
+
+    @ui.button(label="👋 ออกจากห้อง", style=discord.ButtonStyle.danger)
+    async def stop_button(self, interaction: discord.Interaction, button: ui.Button):
+        if interaction.guild.voice_client:
+            queue = get_queue(interaction.guild.id)
+            queue.clear()
+            now_playing.pop(interaction.guild.id, None)
+            await interaction.guild.voice_client.disconnect()
+            await interaction.response.send_message("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ!", ephemeral=True)
+            self.stop()
+        else:
+            await interaction.response.send_message("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ", ephemeral=True)
+
+
+class HelpView(ui.View):
+    """เมนู Help แบบ Interactive"""
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @ui.button(label="🎵 เพลง", style=discord.ButtonStyle.success, row=0)
+    async def music_help(self, interaction: discord.Interaction, button: ui.Button):
+        embed = discord.Embed(title="🎵 คำสั่งเพลง", color=0xFF69B4)
+        embed.add_field(name="!play <ลิงก์/ชื่อเพลง>", value="เล่นเพลงหรือเพิ่มเข้า Queue ค่ะ", inline=False)
+        embed.add_field(name="!pause", value="หยุดเพลงชั่วคราวค่ะ", inline=False)
+        embed.add_field(name="!resume", value="เล่นเพลงต่อค่ะ", inline=False)
+        embed.add_field(name="!skip", value="ข้ามไปเพลงถัดไปค่ะ", inline=False)
+        embed.add_field(name="!queue", value="ดูรายการเพลงใน Queue ค่ะ", inline=False)
+        embed.add_field(name="!np", value="ดูเพลงที่กำลังเล่นค่ะ", inline=False)
+        embed.add_field(name="!clear", value="ล้าง Queue ค่ะ", inline=False)
+        embed.add_field(name="!stop", value="หยุดเพลงและออกจากห้องค่ะ", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @ui.button(label="💬 ส่งข้อความ", style=discord.ButtonStyle.primary, row=0)
+    async def message_help(self, interaction: discord.Interaction, button: ui.Button):
+        embed = discord.Embed(title="💬 คำสั่งส่งข้อความ", color=0xFF69B4)
+        embed.add_field(name="!sendtext <@user/#channel> <ข้อความ>", value="ส่งข้อความไปยัง user หรือ channel ค่ะ", inline=False)
+        embed.add_field(name="!getfile <ชื่อไฟล์>", value="ดึงไฟล์จาก server ค่ะ", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @ui.button(label="⚙️ ระบบ", style=discord.ButtonStyle.secondary, row=0)
+    async def system_help(self, interaction: discord.Interaction, button: ui.Button):
+        embed = discord.Embed(title="⚙️ คำสั่งระบบ (Owner เท่านั้น)", color=0xFF69B4)
+        embed.add_field(name="!cmd <คำสั่ง>", value="รันคำสั่งบน Server ค่ะ (Owner เท่านั้นนะคะ)", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ==================== Events ====================
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------ System Online ------')
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!help 🎵"))
+
+
+# ==================== Commands ====================
+
+@bot.command(name='help', aliases=['h', 'commands'])
+async def help_command(ctx):
+    """แสดงเมนูช่วยเหลือ"""
+    embed = discord.Embed(
+        title="🌸 สวัสดีค่ะ! หนูชื่อ MeoXP Bot ค่ะ~",
+        description="กดปุ่มด้านล่างเพื่อดูคำสั่งแต่ละหมวดได้เลยนะคะ 💕",
+        color=0xFF69B4
+    )
+    embed.set_footer(text="หนูพร้อมช่วยเสมอค่ะ~ 🎀")
+    await ctx.send(embed=embed, view=HelpView())
+
 
 # --- Zone 1: Automation & System Command ---
 @bot.command(name='cmd')
 async def shell_command(ctx, *, command):
-    # เช็คว่าเป็นเราสั่งคนเดียวไหม
     if ctx.author.id != MY_OWNER_ID:
-        await ctx.send("⛔ Access Denied: คุณไม่มีสิทธิ์สั่ง Server นี้")
+        await ctx.send("⛔ ขอโทษนะคะ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ค่ะ 🙏")
         return
 
-    await ctx.send(f"💻 Executing: `{command}`...")
+    await ctx.send(f"💻 รอสักครู่นะคะ กำลังรัน: `{command}`...")
     
     try:
-        # รันคำสั่งจริงบน Mac
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         
         output = result.stdout
         if not output:
-            output = result.stderr # ถ้าไม่มี output ให้เอา error มาโชว์
+            output = result.stderr
             
-        if len(output) > 1900: # Discord limit
-            output = output[:1900] + "\n... (ตัดทอน)"
+        if len(output) > 1900:
+            output = output[:1900] + "\n... (ตัดทอนค่ะ)"
             
         if output.strip() == "":
-            await ctx.send("✅ รันเสร็จสิ้น (ไม่มี Output)")
+            await ctx.send("✅ รันเสร็จเรียบร้อยค่ะ~ (ไม่มี Output นะคะ)")
         else:
             await ctx.send(f"```bash\n{output}\n```")
             
     except Exception as e:
-        await ctx.send(f"❌ Error: {e}")
+        await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
+
 
 # --- Zone 2: File Transfer ---
 @bot.command()
 async def getfile(ctx, filename):
-    # ดึงไฟล์จาก Folder โปรเจกต์ไปส่งในแชท
     if os.path.exists(filename):
-        await ctx.send(file=discord.File(filename))
+        await ctx.send("📎 นี่ค่ะ ไฟล์ที่ขอมาค่ะ~", file=discord.File(filename))
     else:
-        await ctx.send(f"หาไฟล์ `{filename}` ไม่เจอค่ะ")
+        await ctx.send(f"❌ ขอโทษนะคะ หาไฟล์ `{filename}` ไม่เจอค่ะ 🥺")
 
-# --- Zone 3: DM Commands (ส่งข้อความไปยังที่อื่น) ---
+
+# --- Zone 3: DM Commands ---
 @bot.command(name='sendtext')
 async def send_text_to(ctx, target: str, *, message: str):
-    """
-    ส่งข้อความไปยัง channel หรือ user อื่น
-    Usage: !sendtext <@user หรือ #channel หรือ ID> <message>
-    ตัวอย่าง: 
-      !sendtext @username สวัสดีครับ!
-      !sendtext 123456789 สวัสดีครับ!
-    """
-    # เช็คว่าเป็น owner ไหม
     if ctx.author.id != MY_OWNER_ID:
-        await ctx.send("⛔ Access Denied: คุณไม่มีสิทธิ์ใช้คำสั่งนี้")
+        await ctx.send("⛔ ขอโทษนะคะ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ค่ะ 🙏")
         return
     
     try:
         destination = None
         target_type = None
         
-        # เช็คว่าเป็น mention user ไหม (<@123456789> หรือ <@!123456789>)
         if target.startswith('<@') and target.endswith('>'):
             user_id = target.replace('<@', '').replace('!', '').replace('>', '')
             destination = await bot.fetch_user(int(user_id))
             target_type = "user"
         
-        # เช็คว่าเป็น mention channel ไหม (<#123456789>)
         elif target.startswith('<#') and target.endswith('>'):
             channel_id = target.replace('<#', '').replace('>', '')
             destination = bot.get_channel(int(channel_id))
             target_type = "channel"
         
-        # ถ้าเป็น ID ตัวเลขตรงๆ
         elif target.isdigit():
             target_id = int(target)
-            # ลอง fetch เป็น channel ก่อน
             destination = bot.get_channel(target_id)
             target_type = "channel"
             
-            # ถ้าไม่ใช่ channel ให้ลอง fetch เป็น user
             if destination is None:
                 destination = await bot.fetch_user(target_id)
                 target_type = "user"
         
         else:
-            await ctx.send("❌ รูปแบบไม่ถูกต้อง ใช้: `@user`, `#channel`, หรือ `ID`")
+            await ctx.send("❌ รูปแบบไม่ถูกต้องนะคะ ใช้: `@user`, `#channel`, หรือ `ID` ค่ะ")
             return
         
         if destination is None:
-            await ctx.send(f"❌ ไม่พบ channel/user: `{target}`")
+            await ctx.send(f"❌ หาไม่เจอค่ะ: `{target}` 🥺")
             return
         
-        # ส่งข้อความ
         await destination.send(message)
         
         if target_type == "channel":
-            await ctx.send(f"✅ ส่งข้อความไปยัง channel **{destination.name}** สำเร็จ!")
+            await ctx.send(f"✅ ส่งข้อความไปยัง channel **{destination.name}** เรียบร้อยแล้วค่ะ~ 💕")
         else:
-            await ctx.send(f"✅ ส่งข้อความไปยัง DM ของ **{destination.name}** สำเร็จ!")
+            await ctx.send(f"✅ ส่งข้อความไปยัง DM ของ **{destination.name}** เรียบร้อยแล้วค่ะ~ 💕")
             
     except discord.Forbidden:
-        await ctx.send("❌ ไม่มีสิทธิ์ส่งข้อความไปยัง channel/user นี้")
+        await ctx.send("❌ ขอโทษนะคะ หนูไม่มีสิทธิ์ส่งข้อความไปที่นั่นค่ะ 🥺")
     except discord.NotFound:
-        await ctx.send(f"❌ ไม่พบ channel/user: `{target}`")
+        await ctx.send(f"❌ หาไม่เจอค่ะ: `{target}` 🥺")
     except ValueError:
-        await ctx.send("❌ ID ไม่ถูกต้อง")
+        await ctx.send("❌ ID ไม่ถูกต้องนะคะ")
     except Exception as e:
-        await ctx.send(f"❌ Error: {e}")
+        await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
 
 
 # --- Zone 4: Music with Queue System ---
 def get_queue(guild_id):
-    """ดึง queue ของ server หรือสร้างใหม่ถ้ายังไม่มี"""
     if guild_id not in music_queues:
         music_queues[guild_id] = deque()
     return music_queues[guild_id]
 
 async def play_next(ctx):
-    """เล่นเพลงถัดไปใน queue"""
     queue = get_queue(ctx.guild.id)
     
     if len(queue) > 0:
@@ -199,32 +312,36 @@ async def play_next(ctx):
             def after_playing(error):
                 if error:
                     print(f'Player error: {error}')
-                # เล่นเพลงถัดไป
                 asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
             
             ctx.voice_client.play(player, after=after_playing)
         
-        await ctx.send(f'🎶 กำลังเล่น: **{player.title}**')
+        embed = discord.Embed(
+            title="🎶 กำลังเล่นเพลงค่ะ~",
+            description=f"**{player.title}**",
+            color=0xFF69B4
+        )
+        embed.set_footer(text=f"ขอโดย: {next_song['requester']} 💕")
+        await ctx.send(embed=embed, view=MusicControlView(ctx))
     else:
         now_playing.pop(ctx.guild.id, None)
-        await ctx.send("📭 Queue หมดแล้ว!")
+        await ctx.send("📭 เพลงใน Queue หมดแล้วค่ะ~ ขอเพลงใหม่ได้เลยนะคะ 🎵")
 
 @bot.command()
 async def play(ctx, *, url):
     """เล่นเพลงหรือเพิ่มเข้า queue"""
     if not ctx.message.author.voice:
-        await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อน!")
+        await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
         return
 
     channel = ctx.message.author.voice.channel
     
-    # ถ้าบอทยังไม่เข้าห้อง ให้เข้า
     if ctx.voice_client is None:
         await channel.connect()
+        await ctx.send(f"🎀 หนูเข้าห้อง **{channel.name}** แล้วค่ะ~")
     
     queue = get_queue(ctx.guild.id)
     
-    # ดึงข้อมูลเพลง
     async with ctx.typing():
         try:
             data = await bot.loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
@@ -232,7 +349,7 @@ async def play(ctx, *, url):
                 data = data['entries'][0]
             song_title = data.get('title', 'Unknown')
         except Exception as e:
-            await ctx.send(f"❌ ไม่สามารถโหลดเพลงได้: {e}")
+            await ctx.send(f"❌ ไม่สามารถโหลดเพลงได้ค่ะ: {e} 🥺")
             return
     
     song_info = {
@@ -241,105 +358,102 @@ async def play(ctx, *, url):
         'requester': ctx.author.name
     }
     
-    # ถ้ากำลังเล่นอยู่ ให้เพิ่มเข้า queue
     if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
         queue.append(song_info)
-        await ctx.send(f'📥 เพิ่มเข้า Queue: **{song_title}** (ตำแหน่ง #{len(queue)})')
+        embed = discord.Embed(
+            title="📥 เพิ่มเข้า Queue แล้วค่ะ~",
+            description=f"**{song_title}**",
+            color=0xFF69B4
+        )
+        embed.set_footer(text=f"ตำแหน่ง #{len(queue)} | ขอโดย: {ctx.author.name}")
+        await ctx.send(embed=embed)
     else:
-        # ถ้าไม่ได้เล่นอยู่ ให้เล่นเลย
         queue.append(song_info)
         await play_next(ctx)
 
 @bot.command()
 async def pause(ctx):
-    """หยุดเพลงชั่วคราว"""
     if ctx.voice_client and ctx.voice_client.is_playing():
         ctx.voice_client.pause()
-        await ctx.send("⏸️ หยุดเพลงชั่วคราว")
+        await ctx.send("⏸️ หยุดเพลงชั่วคราวค่ะ~ กด `!resume` เพื่อเล่นต่อนะคะ 🎵")
     else:
-        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่")
+        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~")
 
 @bot.command()
 async def resume(ctx):
-    """เล่นเพลงต่อ"""
     if ctx.voice_client and ctx.voice_client.is_paused():
         ctx.voice_client.resume()
-        await ctx.send("▶️ เล่นเพลงต่อ")
+        await ctx.send("▶️ เล่นเพลงต่อค่ะ~ 🎶")
     else:
-        await ctx.send("❌ ไม่มีเพลงที่หยุดอยู่")
+        await ctx.send("❌ ไม่มีเพลงที่หยุดอยู่นะคะ~")
 
 @bot.command()
 async def skip(ctx):
-    """ข้ามไปเพลงถัดไป"""
     if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
-        ctx.voice_client.stop()  # จะ trigger after callback ที่เล่นเพลงถัดไป
-        await ctx.send("⏭️ ข้ามเพลง...")
+        ctx.voice_client.stop()
+        await ctx.send("⏭️ ข้ามไปเพลงถัดไปค่ะ~")
     else:
-        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่")
+        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~")
 
 @bot.command(name='queue', aliases=['q'])
 async def show_queue(ctx):
-    """แสดงรายการเพลงใน queue"""
     queue = get_queue(ctx.guild.id)
     current = now_playing.get(ctx.guild.id)
     
     if not current and len(queue) == 0:
-        await ctx.send("📭 Queue ว่างเปล่า")
+        await ctx.send("📭 Queue ว่างเปล่าค่ะ~ ขอเพลงได้เลยนะคะ! 🎵")
         return
     
-    embed = discord.Embed(title="🎵 Music Queue", color=0x1DB954)
+    embed = discord.Embed(title="🎵 รายการเพลง", color=0xFF69B4)
     
-    # เพลงที่กำลังเล่น
     if current:
         embed.add_field(
             name="🎶 กำลังเล่น",
-            value=f"**{current['title']}**\nRequested by: {current['requester']}",
+            value=f"**{current['title']}**\nขอโดย: {current['requester']}",
             inline=False
         )
     
-    # รายการใน queue
     if len(queue) > 0:
         queue_list = ""
-        for i, song in enumerate(list(queue)[:10], 1):  # แสดงแค่ 10 เพลงแรก
+        for i, song in enumerate(list(queue)[:10], 1):
             queue_list += f"`{i}.` {song['title']} - {song['requester']}\n"
         
         if len(queue) > 10:
-            queue_list += f"\n... และอีก {len(queue) - 10} เพลง"
+            queue_list += f"\n... และอีก {len(queue) - 10} เพลงค่ะ"
         
         embed.add_field(name="📋 ถัดไป", value=queue_list, inline=False)
     
-    embed.set_footer(text=f"ทั้งหมด {len(queue)} เพลงใน queue")
-    await ctx.send(embed=embed)
+    embed.set_footer(text=f"ทั้งหมด {len(queue)} เพลงใน Queue ค่ะ 💕")
+    await ctx.send(embed=embed, view=MusicControlView(ctx))
 
 @bot.command(name='np', aliases=['nowplaying'])
 async def now_playing_cmd(ctx):
-    """แสดงเพลงที่กำลังเล่นอยู่"""
     current = now_playing.get(ctx.guild.id)
     
     if current:
-        embed = discord.Embed(title="🎶 Now Playing", color=0x1DB954)
+        embed = discord.Embed(title="🎶 กำลังเล่นอยู่ค่ะ~", color=0xFF69B4)
         embed.add_field(name="เพลง", value=f"**{current['title']}**", inline=False)
-        embed.add_field(name="Requested by", value=current['requester'], inline=True)
-        await ctx.send(embed=embed)
+        embed.add_field(name="ขอโดย", value=current['requester'], inline=True)
+        embed.set_footer(text="เพลงเพราะมากเลยค่ะ~ 💕")
+        await ctx.send(embed=embed, view=MusicControlView(ctx))
     else:
-        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่")
+        await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~ ขอเพลงได้เลยค่ะ! 🎵")
 
 @bot.command()
 async def clear(ctx):
-    """ล้าง queue ทั้งหมด"""
     queue = get_queue(ctx.guild.id)
     queue.clear()
-    await ctx.send("🗑️ ล้าง Queue เรียบร้อย!")
+    await ctx.send("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~ 💕")
 
 @bot.command()
 async def stop(ctx):
-    """หยุดเพลงและออกจากห้อง"""
     if ctx.voice_client:
         queue = get_queue(ctx.guild.id)
         queue.clear()
         now_playing.pop(ctx.guild.id, None)
         await ctx.voice_client.disconnect()
-        await ctx.send("👋 ออกจากห้องแล้ว")
+        await ctx.send("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀")
+
 
 # Start Bot
 if TOKEN:
