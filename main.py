@@ -20,10 +20,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!!', intents=intents, help_command=None)
 
-# Setup สำหรับ yt-dlp (โหลดเพลง) - คุณภาพสูงสุด
+# Setup สำหรับ yt-dlp (โหลดเพลง) - Optimized for speed
 ytdl_format_options = {
-    'format': 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'format': 'bestaudio/best',
     'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
@@ -31,16 +30,13 @@ ytdl_format_options = {
     'logtostderr': False,
     'quiet': True,
     'no_warnings': True,
-    'default_search': 'auto',
+    'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'opus',
-        'preferredquality': '320',
-    }],
+    'extract_flat': False,
+    # ไม่ใช้ postprocessors เพราะ stream โดยตรง
 }
 ffmpeg_options = {
-    'options': '-vn -b:a 320k',
+    'options': '-vn',
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
@@ -57,13 +53,20 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.url = data.get('url')
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
+    async def from_url(cls, url, *, loop=None):
+        """สร้าง audio source จาก URL (ใช้ streaming)"""
         loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
         if 'entries' in data:
             data = data['entries'][0]
-        filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+        audio_url = data['url']
+        return cls(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options), data=data)
+    
+    @classmethod
+    async def from_data(cls, data, *, loop=None):
+        """สร้าง audio source จาก cached data (เร็วกว่า)"""
+        audio_url = data['url']
+        return cls(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options), data=data)
 
 
 # ==================== UI Components ====================
@@ -376,9 +379,22 @@ async def play_next(ctx):
     if len(queue) > 0:
         next_song = queue.popleft()
         
-        async with ctx.typing():
-            player = await YTDLSource.from_url(next_song['url'], loop=bot.loop, stream=True)
-            now_playing[ctx.guild.id] = {'title': player.title, 'url': next_song['url'], 'requester': next_song['requester']}
+        try:
+            # ใช้ cached data ถ้ามี (เร็วกว่า)
+            if 'audio_url' in next_song:
+                player = await YTDLSource.from_data({
+                    'url': next_song['audio_url'],
+                    'title': next_song['title']
+                }, loop=bot.loop)
+            else:
+                # ถ้าไม่มี cache ให้ดึงใหม่
+                player = await YTDLSource.from_url(next_song['url'], loop=bot.loop)
+            
+            now_playing[ctx.guild.id] = {
+                'title': player.title or next_song['title'],
+                'url': next_song['url'],
+                'requester': next_song['requester']
+            }
             
             def after_playing(error):
                 if error:
@@ -386,14 +402,19 @@ async def play_next(ctx):
                 asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
             
             ctx.voice_client.play(player, after=after_playing)
-        
-        embed = discord.Embed(
-            title="🎶 กำลังเล่นเพลงค่ะ~",
-            description=f"**{player.title}**",
-            color=0xFF69B4
-        )
-        embed.set_footer(text=f"ขอโดย: {next_song['requester']} 💕")
-        await ctx.send(embed=embed, view=MusicControlView(ctx))
+            
+            embed = discord.Embed(
+                title="🎶 กำลังเล่นเพลงค่ะ~",
+                description=f"**{player.title or next_song['title']}**",
+                color=0xFF69B4
+            )
+            embed.set_footer(text=f"ขอโดย: {next_song['requester']} 💕")
+            await ctx.send(embed=embed, view=MusicControlView(ctx))
+            
+        except Exception as e:
+            await ctx.send(f"❌ เกิดข้อผิดพลาดในการเล่นเพลงค่ะ: {e}")
+            # ลองเพลงถัดไป
+            await play_next(ctx)
     else:
         now_playing.pop(ctx.guild.id, None)
         await ctx.send("📭 เพลงใน Queue หมดแล้วค่ะ~ ขอเพลงใหม่ได้เลยนะคะ 🎵")
@@ -413,19 +434,28 @@ async def play(ctx, *, url):
     
     queue = get_queue(ctx.guild.id)
     
-    async with ctx.typing():
-        try:
-            data = await bot.loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
-            if 'entries' in data:
-                data = data['entries'][0]
-            song_title = data.get('title', 'Unknown')
-        except Exception as e:
-            await ctx.send(f"❌ ไม่สามารถโหลดเพลงได้ค่ะ: {e} 🥺")
-            return
+    # แสดงสถานะกำลังค้นหา
+    status_msg = await ctx.send("🔍 กำลังค้นหาเพลงค่ะ...")
+    
+    try:
+        # ดึงข้อมูลเพลงและ audio URL พร้อมกัน
+        data = await bot.loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
+        if 'entries' in data:
+            data = data['entries'][0]
+        
+        song_title = data.get('title', 'Unknown')
+        audio_url = data.get('url')  # Cache audio URL
+        
+        await status_msg.delete()
+        
+    except Exception as e:
+        await status_msg.edit(content=f"❌ ไม่สามารถโหลดเพลงได้ค่ะ: {e} 🥺")
+        return
     
     song_info = {
         'url': url,
         'title': song_title,
+        'audio_url': audio_url,  # เก็บ audio URL ไว้ใช้ตอนเล่น
         'requester': ctx.author.name
     }
     
