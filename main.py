@@ -3,10 +3,12 @@ from discord.ext import commands
 from discord import ui
 import os
 import subprocess
+import tempfile
 from dotenv import load_dotenv
 import yt_dlp
 import asyncio
 from collections import deque
+import edge_tts
 
 # --- CONFIG ---
 load_dotenv()
@@ -192,7 +194,8 @@ class HelpView(ui.View):
             "description": "หนูเป็นบอทเล่นเพลงและช่วยเหลือต่างๆ ค่ะ\n\nกดปุ่ม ◀️ ▶️ เพื่อดูหน้าอื่นๆ นะคะ 💕",
             "fields": [
                 ("🎵 เพลง", "เล่นเพลงจาก YouTube และอื่นๆ"),
-                ("💬 ส่งข้อความ", "ส่งข้อความไปยัง User/Channel"),
+                ("�️ TTS", "ให้หนูพูดข้อความใน Voice Channel"),
+                ("�💬 ส่งข้อความ", "ส่งข้อความไปยัง User/Channel"),
                 ("⚙️ ระบบ", "คำสั่งสำหรับ Owner"),
             ]
         },
@@ -208,6 +211,15 @@ class HelpView(ui.View):
                 ("!!np", "ดูเพลงที่กำลังเล่นค่ะ"),
                 ("!!clear", "ล้าง Queue ค่ะ"),
                 ("!!stop", "หยุดเพลงและออกจากห้องค่ะ"),
+            ]
+        },
+        {
+            "title": "🗣️ คำสั่ง Text-to-Speech",
+            "description": "ให้หนูพูดข้อความเป็นเสียงใน Voice Channel ค่ะ~",
+            "fields": [
+                ("!!say <ข้อความ>", "พูดเป็นภาษาไทย 🇹🇭 (เสียง Premwadee)"),
+                ("!!saye <ข้อความ>", "พูดเป็นภาษาอังกฤษ 🇺🇸 (เสียง Jenny)"),
+                ("!!voices", "ดูรายการเสียงที่ใช้ได้ค่ะ"),
             ]
         },
         {
@@ -598,8 +610,6 @@ async def play(ctx, *, url):
             else:
                 entries = [e for e in data['entries'] if e]  # กรอง None entries
                 playlist_title = data.get('title', 'Playlist')
-                
-                # จำกัด 50 เพลง
                 max_songs = 200
                 entries = entries[:max_songs]
                 
@@ -789,6 +799,133 @@ async def stop(ctx):
         now_playing.pop(ctx.guild.id, None)
         await ctx.voice_client.disconnect()
         await ctx.send("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀")
+
+
+# --- Zone 6: Text-to-Speech ---
+# TTS Voices
+TTS_VOICES = {
+    'th': 'th-TH-PremwadeeNeural',   # ผู้หญิงไทย
+    'en': 'en-US-JennyNeural',        # ผู้หญิงอังกฤษ (สำเนียงอเมริกัน)
+}
+
+# TTS Queue เพื่อให้ TTS ไม่ขัดกับเพลง
+tts_queue = {}
+
+def get_tts_queue(guild_id):
+    if guild_id not in tts_queue:
+        tts_queue[guild_id] = deque()
+    return tts_queue[guild_id]
+
+async def speak_tts(ctx, text: str, voice: str):
+    """แปลงข้อความเป็นเสียงและเล่นใน Voice Channel"""
+    if not ctx.author.voice:
+        await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
+        return
+    
+    channel = ctx.author.voice.channel
+    
+    # เชื่อมต่อ Voice Channel ถ้ายังไม่ได้เชื่อม
+    if ctx.voice_client is None:
+        await channel.connect()
+        await ctx.send(f"🎀 หนูเข้าห้อง **{channel.name}** แล้วค่ะ~")
+    
+    # สร้างไฟล์ชั่วคราว
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+    temp_path = temp_file.name
+    temp_file.close()
+    
+    try:
+        # แสดงสถานะ
+        status_msg = await ctx.send("🗣️ กำลังสร้างเสียงค่ะ...")
+        
+        # ใช้ edge-tts สร้างไฟล์เสียง
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(temp_path)
+        
+        await status_msg.delete()
+        
+        # ถ้ากำลังเล่นเพลงอยู่ ให้หยุดชั่วคราว
+        was_playing = ctx.voice_client.is_playing()
+        was_paused = ctx.voice_client.is_paused()
+        
+        if was_playing:
+            ctx.voice_client.pause()
+        
+        # รอให้เพลงหยุดก่อน
+        while ctx.voice_client.is_playing():
+            await asyncio.sleep(0.1)
+        
+        # เล่น TTS
+        tts_done = asyncio.Event()
+        
+        def after_tts(error):
+            if error:
+                print(f'TTS error: {error}')
+            # ลบไฟล์ชั่วคราว
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+            # Resume เพลงถ้าหยุดไว้
+            if was_playing and ctx.voice_client and not ctx.voice_client.is_playing():
+                ctx.voice_client.resume()
+            tts_done.set()
+        
+        source = discord.FFmpegPCMAudio(temp_path)
+        ctx.voice_client.play(source, after=after_tts)
+        
+        # ส่งข้อความยืนยัน
+        lang_name = "🇹🇭 ไทย" if voice == TTS_VOICES['th'] else "🇺🇸 อังกฤษ"
+        embed = discord.Embed(
+            title="🗣️ กำลังพูดค่ะ~",
+            description=f"**\"{text}\"**",
+            color=0x00D4FF
+        )
+        embed.add_field(name="🌐 ภาษา", value=lang_name, inline=True)
+        embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        # ลบไฟล์ชั่วคราว
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+        await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
+
+
+@bot.command(name='say', aliases=['tts', 'พูด'])
+async def tts_thai(ctx, *, text: str):
+    """พูดข้อความเป็นภาษาไทย"""
+    await speak_tts(ctx, text, TTS_VOICES['th'])
+
+
+@bot.command(name='saye', aliases=['ttse', 'speak'])
+async def tts_english(ctx, *, text: str):
+    """พูดข้อความเป็นภาษาอังกฤษ"""
+    await speak_tts(ctx, text, TTS_VOICES['en'])
+
+
+@bot.command(name='voices')
+async def list_voices(ctx):
+    """แสดงรายการเสียง TTS ที่ใช้ได้"""
+    embed = discord.Embed(
+        title="🗣️ เสียง TTS ที่ใช้ได้",
+        description="หนูพูดได้ทั้งภาษาไทยและอังกฤษค่ะ~",
+        color=0x00D4FF
+    )
+    embed.add_field(
+        name="🇹🇭 ภาษาไทย",
+        value=f"**!!say** `<ข้อความ>`\nเสียง: Premwadee (ผู้หญิง)",
+        inline=False
+    )
+    embed.add_field(
+        name="🇺🇸 ภาษาอังกฤษ",
+        value=f"**!!saye** `<ข้อความ>`\nเสียง: Jenny (ผู้หญิง)",
+        inline=False
+    )
+    embed.set_footer(text="ลองใช้ได้เลยนะคะ~ 💕")
+    await ctx.send(embed=embed)
 
 
 # Start Bot
