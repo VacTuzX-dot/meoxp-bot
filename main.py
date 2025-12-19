@@ -61,7 +61,6 @@ ytdl_single = yt_dlp.YoutubeDL(ytdl_single_options)
 # Music Queue System
 music_queues = {}
 now_playing = {}
-play_start_time = {}  # เก็บเวลาเริ่มเล่น
 
 def format_duration(seconds):
     """แปลงวินาทีเป็น MM:SS หรือ HH:MM:SS"""
@@ -74,17 +73,6 @@ def format_duration(seconds):
     if hours > 0:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
-
-def create_progress_bar(current, total, length=12):
-    """สร้าง progress bar"""
-    if not total or total == 0:
-        return "▬" * length
-    
-    progress = min(current / total, 1.0)
-    filled = int(length * progress)
-    
-    bar = "▬" * filled + "🔘" + "▬" * (length - filled - 1)
-    return bar
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -439,10 +427,6 @@ async def play_next(ctx):
                 # ถ้าไม่มี cache ให้ดึงใหม่
                 player = await YTDLSource.from_url(next_song['url'], loop=bot.loop)
             
-            # เก็บเวลาเริ่มเล่น
-            import time
-            play_start_time[ctx.guild.id] = time.time()
-            
             now_playing[ctx.guild.id] = {
                 'title': player.title or next_song['title'],
                 'url': next_song['url'],
@@ -456,15 +440,13 @@ async def play_next(ctx):
             def after_playing(error):
                 if error:
                     print(f'Player error: {error}')
-                play_start_time.pop(ctx.guild.id, None)
                 asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
             
             ctx.voice_client.play(player, after=after_playing)
             
-            # สร้าง embed พร้อมข้อมูลเพิ่มเติม
+            # สร้าง embed
             current = now_playing[ctx.guild.id]
             duration_str = format_duration(current['duration'])
-            progress_bar = create_progress_bar(0, current['duration'] or 0)
             
             # Quality info
             quality_parts = []
@@ -481,11 +463,7 @@ async def play_next(ctx):
                 description=f"**{current['title']}**",
                 color=0xFF69B4
             )
-            embed.add_field(
-                name="⏱️ ความยาว",
-                value=f"`{progress_bar}`\n`0:00 / {duration_str}`",
-                inline=False
-            )
+            embed.add_field(name="⏱️ ความยาว", value=duration_str, inline=True)
             embed.add_field(name="🎧 คุณภาพ", value=quality_str, inline=True)
             embed.add_field(name="📋 Queue", value=f"{len(queue)} เพลง", inline=True)
             embed.set_footer(text=f"ขอโดย: {next_song['requester']} 💕")
@@ -497,7 +475,6 @@ async def play_next(ctx):
             await play_next(ctx)
     else:
         now_playing.pop(ctx.guild.id, None)
-        play_start_time.pop(ctx.guild.id, None)
         await ctx.send("📭 เพลงใน Queue หมดแล้วค่ะ~ ขอเพลงใหม่ได้เลยนะคะ 🎵")
 
 @bot.command()
@@ -687,17 +664,7 @@ async def now_playing_cmd(ctx):
     current = now_playing.get(ctx.guild.id)
     
     if current:
-        import time
-        
-        # คำนวณเวลาที่เล่นไปแล้ว
-        start_time = play_start_time.get(ctx.guild.id, time.time())
-        elapsed = int(time.time() - start_time)
-        duration = current.get('duration') or 0
-        
-        # สร้าง progress bar
-        progress_bar = create_progress_bar(elapsed, duration)
-        elapsed_str = format_duration(elapsed)
-        duration_str = format_duration(duration)
+        duration_str = format_duration(current.get('duration'))
         
         # Quality info
         quality_parts = []
@@ -711,11 +678,7 @@ async def now_playing_cmd(ctx):
         
         embed = discord.Embed(title="🎶 กำลังเล่นอยู่ค่ะ~", color=0xFF69B4)
         embed.add_field(name="🎵 เพลง", value=f"**{current['title']}**", inline=False)
-        embed.add_field(
-            name="⏱️ ความยาว",
-            value=f"`{progress_bar}`\n`{elapsed_str} / {duration_str}`",
-            inline=False
-        )
+        embed.add_field(name="⏱️ ความยาว", value=duration_str, inline=True)
         embed.add_field(name="🎧 คุณภาพ", value=quality_str, inline=True)
         embed.add_field(name="📋 Queue", value=f"{len(get_queue(ctx.guild.id))} เพลง", inline=True)
         embed.add_field(name="👤 ขอโดย", value=current['requester'], inline=True)
