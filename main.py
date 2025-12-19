@@ -838,8 +838,8 @@ async def speak_tts(ctx, text: str, voice: str):
         # แสดงสถานะ
         status_msg = await ctx.send("🗣️ กำลังสร้างเสียงค่ะ...")
         
-        # ใช้ edge-tts สร้างไฟล์เสียง
-        communicate = edge_tts.Communicate(text, voice)
+        # ใช้ edge-tts สร้างไฟล์เสียง (rate=-15% ช้าลง)
+        communicate = edge_tts.Communicate(text, voice, rate="-15%")
         await communicate.save(temp_path)
         
         await status_msg.delete()
