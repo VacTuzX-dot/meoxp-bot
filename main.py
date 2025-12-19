@@ -20,8 +20,24 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!!', intents=intents, help_command=None)
 
-# Setup สำหรับ yt-dlp (โหลดเพลง) - Optimized for speed
+# Setup สำหรับ yt-dlp (โหลดเพลง) - Optimized for speed + Playlist support
 ytdl_format_options = {
+    'format': 'bestaudio/best',
+    'restrictfilenames': True,
+    'noplaylist': False,  # อนุญาต playlist
+    'nocheckcertificate': True,
+    'ignoreerrors': True,  # ข้ามเพลงที่มีปัญหาใน playlist
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'ytsearch',
+    'source_address': '0.0.0.0',
+    'extract_flat': 'in_playlist',  # ดึงข้อมูล playlist เร็วขึ้น
+    'extractor_args': {'youtube': {'player_client': ['android_music', 'web']}},  # YouTube Music support
+}
+
+# สำหรับดึงเพลงเดี่ยว (ไม่ใช้ extract_flat)
+ytdl_single_options = {
     'format': 'bestaudio/best',
     'restrictfilenames': True,
     'noplaylist': True,
@@ -32,14 +48,15 @@ ytdl_format_options = {
     'no_warnings': True,
     'default_search': 'ytsearch',
     'source_address': '0.0.0.0',
-    'extract_flat': False,
-    # ไม่ใช้ postprocessors เพราะ stream โดยตรง
+    'extractor_args': {'youtube': {'player_client': ['android_music', 'web']}},
 }
+
 ffmpeg_options = {
     'options': '-vn',
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 }
 ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+ytdl_single = yt_dlp.YoutubeDL(ytdl_single_options)
 
 # Music Queue System
 music_queues = {}
@@ -421,7 +438,7 @@ async def play_next(ctx):
 
 @bot.command()
 async def play(ctx, *, url):
-    """เล่นเพลงหรือเพิ่มเข้า queue"""
+    """เล่นเพลงหรือเพิ่มเข้า queue (รองรับ playlist)"""
     if not ctx.message.author.voice:
         await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
         return
@@ -438,39 +455,92 @@ async def play(ctx, *, url):
     status_msg = await ctx.send("🔍 กำลังค้นหาเพลงค่ะ...")
     
     try:
-        # ดึงข้อมูลเพลงและ audio URL พร้อมกัน
-        data = await bot.loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
-        if 'entries' in data:
-            data = data['entries'][0]
+        # ตรวจสอบว่าเป็น playlist หรือไม่
+        is_playlist = 'list=' in url or 'playlist' in url.lower()
         
-        song_title = data.get('title', 'Unknown')
-        audio_url = data.get('url')  # Cache audio URL
+        if is_playlist:
+            # ดึงข้อมูล playlist
+            await status_msg.edit(content="📚 กำลังโหลด Playlist ค่ะ...")
+            data = await bot.loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=False))
+            
+            if 'entries' not in data:
+                # ไม่ใช่ playlist จริงๆ ให้เล่นเป็นเพลงเดี่ยว
+                is_playlist = False
+            else:
+                entries = [e for e in data['entries'] if e]  # กรอง None entries
+                playlist_title = data.get('title', 'Playlist')
+                
+                # จำกัด 50 เพลง
+                max_songs = 50
+                entries = entries[:max_songs]
+                
+                await status_msg.edit(content=f"🎵 พบ {len(entries)} เพลง กำลังเพิ่มเข้า Queue ค่ะ...")
+                
+                added_count = 0
+                for entry in entries:
+                    if entry is None:
+                        continue
+                    
+                    song_url = entry.get('url') or entry.get('webpage_url') or f"https://youtube.com/watch?v={entry.get('id')}"
+                    song_title = entry.get('title', 'Unknown')
+                    
+                    song_info = {
+                        'url': song_url,
+                        'title': song_title,
+                        'requester': ctx.author.name
+                    }
+                    queue.append(song_info)
+                    added_count += 1
+                
+                await status_msg.delete()
+                
+                embed = discord.Embed(
+                    title="📚 เพิ่ม Playlist เข้า Queue แล้วค่ะ~",
+                    description=f"**{playlist_title}**\n\n🎵 เพิ่ม {added_count} เพลงเข้า Queue",
+                    color=0xFF69B4
+                )
+                embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
+                await ctx.send(embed=embed)
+                
+                # ถ้าไม่ได้เล่นอยู่ ให้เริ่มเล่น
+                if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+                    await play_next(ctx)
+                return
         
-        await status_msg.delete()
+        if not is_playlist:
+            # เพลงเดี่ยว - ใช้ ytdl_single เพื่อดึง audio URL ด้วย
+            data = await bot.loop.run_in_executor(None, lambda: ytdl_single.extract_info(url, download=False))
+            if 'entries' in data:
+                data = data['entries'][0]
+            
+            song_title = data.get('title', 'Unknown')
+            audio_url = data.get('url')
+            
+            await status_msg.delete()
+            
+            song_info = {
+                'url': url,
+                'title': song_title,
+                'audio_url': audio_url,
+                'requester': ctx.author.name
+            }
+            
+            if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
+                queue.append(song_info)
+                embed = discord.Embed(
+                    title="📥 เพิ่มเข้า Queue แล้วค่ะ~",
+                    description=f"**{song_title}**",
+                    color=0xFF69B4
+                )
+                embed.set_footer(text=f"ตำแหน่ง #{len(queue)} | ขอโดย: {ctx.author.name}")
+                await ctx.send(embed=embed)
+            else:
+                queue.append(song_info)
+                await play_next(ctx)
         
     except Exception as e:
         await status_msg.edit(content=f"❌ ไม่สามารถโหลดเพลงได้ค่ะ: {e} 🥺")
         return
-    
-    song_info = {
-        'url': url,
-        'title': song_title,
-        'audio_url': audio_url,  # เก็บ audio URL ไว้ใช้ตอนเล่น
-        'requester': ctx.author.name
-    }
-    
-    if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
-        queue.append(song_info)
-        embed = discord.Embed(
-            title="📥 เพิ่มเข้า Queue แล้วค่ะ~",
-            description=f"**{song_title}**",
-            color=0xFF69B4
-        )
-        embed.set_footer(text=f"ตำแหน่ง #{len(queue)} | ขอโดย: {ctx.author.name}")
-        await ctx.send(embed=embed)
-    else:
-        queue.append(song_info)
-        await play_next(ctx)
 
 @bot.command()
 async def pause(ctx):
