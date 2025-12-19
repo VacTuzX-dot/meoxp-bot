@@ -808,6 +808,101 @@ TTS_VOICES = {
     'en': 'en-US-JennyNeural',        # ผู้หญิงอังกฤษ (สำเนียงอเมริกัน)
 }
 
+# TTS Cache System
+import hashlib
+import time
+import glob
+
+TTS_CACHE_DIR = os.path.join(tempfile.gettempdir(), 'discord_tts_cache')
+TTS_CACHE_MAX_SIZE_MB = 100  # ขนาด cache สูงสุด (MB)
+TTS_CACHE_MAX_AGE_HOURS = 24  # อายุ cache สูงสุด (ชั่วโมง)
+
+# สร้างโฟลเดอร์ cache
+os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+
+def get_cache_key(text: str, voice: str, rate: str) -> str:
+    """สร้าง hash key สำหรับ cache"""
+    content = f"{text}|{voice}|{rate}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+def get_cache_path(cache_key: str) -> str:
+    """ได้ path ของไฟล์ cache"""
+    return os.path.join(TTS_CACHE_DIR, f"{cache_key}.mp3")
+
+def get_cached_tts(text: str, voice: str, rate: str) -> str | None:
+    """ดึง TTS จาก cache (ถ้ามี)"""
+    cache_key = get_cache_key(text, voice, rate)
+    cache_path = get_cache_path(cache_key)
+    
+    if os.path.exists(cache_path):
+        # อัปเดต access time
+        os.utime(cache_path, None)
+        return cache_path
+    return None
+
+def save_to_cache(text: str, voice: str, rate: str, temp_path: str) -> str:
+    """บันทึก TTS ลง cache"""
+    cache_key = get_cache_key(text, voice, rate)
+    cache_path = get_cache_path(cache_key)
+    
+    try:
+        import shutil
+        shutil.copy2(temp_path, cache_path)
+        return cache_path
+    except:
+        return temp_path
+
+def cleanup_tts_cache():
+    """ล้าง cache ที่เก่าเกินไปหรือขนาดเกิน"""
+    try:
+        cache_files = glob.glob(os.path.join(TTS_CACHE_DIR, '*.mp3'))
+        
+        # ลบไฟล์ที่เก่าเกินไป
+        current_time = time.time()
+        max_age_seconds = TTS_CACHE_MAX_AGE_HOURS * 3600
+        
+        for filepath in cache_files:
+            try:
+                file_age = current_time - os.path.getmtime(filepath)
+                if file_age > max_age_seconds:
+                    os.unlink(filepath)
+            except:
+                pass
+        
+        # ตรวจสอบขนาดรวม และลบไฟล์เก่าสุดถ้าเกิน
+        cache_files = glob.glob(os.path.join(TTS_CACHE_DIR, '*.mp3'))
+        total_size = sum(os.path.getsize(f) for f in cache_files if os.path.exists(f))
+        max_size_bytes = TTS_CACHE_MAX_SIZE_MB * 1024 * 1024
+        
+        if total_size > max_size_bytes:
+            # เรียงตาม access time (เก่าสุดก่อน)
+            cache_files.sort(key=lambda x: os.path.getatime(x))
+            
+            for filepath in cache_files:
+                if total_size <= max_size_bytes * 0.8:  # ลบจนเหลือ 80%
+                    break
+                try:
+                    file_size = os.path.getsize(filepath)
+                    os.unlink(filepath)
+                    total_size -= file_size
+                except:
+                    pass
+    except Exception as e:
+        print(f"Cache cleanup error: {e}")
+
+def get_cache_stats() -> dict:
+    """ดูสถิติ cache"""
+    try:
+        cache_files = glob.glob(os.path.join(TTS_CACHE_DIR, '*.mp3'))
+        total_size = sum(os.path.getsize(f) for f in cache_files if os.path.exists(f))
+        return {
+            'count': len(cache_files),
+            'size_mb': round(total_size / (1024 * 1024), 2),
+            'max_size_mb': TTS_CACHE_MAX_SIZE_MB
+        }
+    except:
+        return {'count': 0, 'size_mb': 0, 'max_size_mb': TTS_CACHE_MAX_SIZE_MB}
+
 # TTS Queue เพื่อให้ TTS ไม่ขัดกับเพลง
 tts_queue = {}
 
@@ -817,7 +912,7 @@ def get_tts_queue(guild_id):
     return tts_queue[guild_id]
 
 async def speak_tts(ctx, text: str, voice: str):
-    """แปลงข้อความเป็นเสียงและเล่นใน Voice Channel"""
+    """แปลงข้อความเป็นเสียงและเล่นใน Voice Channel (พร้อม Cache)"""
     if not ctx.author.voice:
         await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
         return
@@ -829,24 +924,48 @@ async def speak_tts(ctx, text: str, voice: str):
         await channel.connect()
         await ctx.send(f"🎀 หนูเข้าห้อง **{channel.name}** แล้วค่ะ~")
     
-    # สร้างไฟล์ชั่วคราว
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
-    temp_path = temp_file.name
-    temp_file.close()
+    tts_rate = "-15%"
+    audio_path = None
+    from_cache = False
     
     try:
-        # แสดงสถานะ
-        status_msg = await ctx.send("🗣️ กำลังสร้างเสียงค่ะ...")
+        # ตรวจสอบ cache ก่อน
+        cached_path = get_cached_tts(text, voice, tts_rate)
         
-        # ใช้ edge-tts สร้างไฟล์เสียง (rate=-15% ช้าลง)
-        communicate = edge_tts.Communicate(text, voice, rate="-15%")
-        await communicate.save(temp_path)
-        
-        await status_msg.delete()
+        if cached_path:
+            # ใช้จาก cache (เร็วมาก!)
+            audio_path = cached_path
+            from_cache = True
+        else:
+            # สร้างใหม่
+            status_msg = await ctx.send("🗣️ กำลังสร้างเสียงค่ะ...")
+            
+            # สร้างไฟล์ชั่วคราว
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+            temp_path = temp_file.name
+            temp_file.close()
+            
+            # ใช้ edge-tts สร้างไฟล์เสียง
+            communicate = edge_tts.Communicate(text, voice, rate=tts_rate)
+            await communicate.save(temp_path)
+            
+            # บันทึกลง cache
+            audio_path = save_to_cache(text, voice, tts_rate, temp_path)
+            
+            # ลบ temp file ถ้า cache สำเร็จ
+            if audio_path != temp_path:
+                try:
+                    os.unlink(temp_path)
+                except:
+                    pass
+            
+            await status_msg.delete()
+            
+            # ล้าง cache เก่า (ทำเป็น background)
+            cleanup_tts_cache()
         
         # ถ้ากำลังเล่นเพลงอยู่ ให้หยุดชั่วคราว
         was_playing = ctx.voice_client.is_playing()
-        was_paused = ctx.voice_client.is_paused()
         
         if was_playing:
             ctx.voice_client.pause()
@@ -856,41 +975,31 @@ async def speak_tts(ctx, text: str, voice: str):
             await asyncio.sleep(0.1)
         
         # เล่น TTS
-        tts_done = asyncio.Event()
-        
         def after_tts(error):
             if error:
                 print(f'TTS error: {error}')
-            # ลบไฟล์ชั่วคราว
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
             # Resume เพลงถ้าหยุดไว้
             if was_playing and ctx.voice_client and not ctx.voice_client.is_playing():
                 ctx.voice_client.resume()
-            tts_done.set()
         
-        source = discord.FFmpegPCMAudio(temp_path)
+        source = discord.FFmpegPCMAudio(audio_path)
         ctx.voice_client.play(source, after=after_tts)
         
         # ส่งข้อความยืนยัน
         lang_name = "🇹🇭 ไทย" if voice == TTS_VOICES['th'] else "🇺🇸 อังกฤษ"
+        cache_status = "⚡ จาก Cache" if from_cache else "🆕 สร้างใหม่"
+        
         embed = discord.Embed(
             title="🗣️ กำลังพูดค่ะ~",
             description=f"**\"{text}\"**",
             color=0x00D4FF
         )
         embed.add_field(name="🌐 ภาษา", value=lang_name, inline=True)
+        embed.add_field(name="💾 สถานะ", value=cache_status, inline=True)
         embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
         await ctx.send(embed=embed)
         
     except Exception as e:
-        # ลบไฟล์ชั่วคราว
-        try:
-            os.unlink(temp_path)
-        except:
-            pass
         await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
 
 
@@ -926,6 +1035,56 @@ async def list_voices(ctx):
     )
     embed.set_footer(text="ลองใช้ได้เลยนะคะ~ 💕")
     await ctx.send(embed=embed)
+
+
+@bot.command(name='ttscache', aliases=['cachestats'])
+async def tts_cache_stats(ctx):
+    """ดูสถิติ TTS Cache"""
+    stats = get_cache_stats()
+    
+    embed = discord.Embed(
+        title="💾 สถิติ TTS Cache",
+        color=0x00D4FF
+    )
+    embed.add_field(name="📁 จำนวนไฟล์", value=f"{stats['count']} ไฟล์", inline=True)
+    embed.add_field(name="💿 ขนาดใช้งาน", value=f"{stats['size_mb']} MB", inline=True)
+    embed.add_field(name="📦 ขนาดสูงสุด", value=f"{stats['max_size_mb']} MB", inline=True)
+    embed.add_field(name="⏰ อายุ Cache", value=f"{TTS_CACHE_MAX_AGE_HOURS} ชั่วโมง", inline=True)
+    embed.set_footer(text="cache ช่วยให้พูดซ้ำเร็วขึ้น ⚡")
+    await ctx.send(embed=embed)
+
+
+@bot.command(name='clearcache', aliases=['ttsclear'])
+async def clear_tts_cache(ctx):
+    """ล้าง TTS Cache ทั้งหมด"""
+    if ctx.author.id != MY_OWNER_ID:
+        await ctx.send("⛔ ขอโทษนะคะ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ค่ะ 🙏")
+        return
+    
+    try:
+        cache_files = glob.glob(os.path.join(TTS_CACHE_DIR, '*.mp3'))
+        deleted_count = 0
+        freed_size = 0
+        
+        for filepath in cache_files:
+            try:
+                freed_size += os.path.getsize(filepath)
+                os.unlink(filepath)
+                deleted_count += 1
+            except:
+                pass
+        
+        freed_mb = round(freed_size / (1024 * 1024), 2)
+        
+        embed = discord.Embed(
+            title="🗑️ ล้าง TTS Cache เรียบร้อย",
+            description=f"ลบไป **{deleted_count}** ไฟล์\nคืนพื้นที่ **{freed_mb} MB**",
+            color=0x00FF00
+        )
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาดค่ะ: {e}")
 
 
 # Start Bot
