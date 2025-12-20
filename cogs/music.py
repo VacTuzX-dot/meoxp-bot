@@ -119,9 +119,12 @@ class Music(commands.Cog):
                 await ctx.send(embed=embed, view=MusicControlView(ctx, get_queue, now_playing))
                 
             except Exception as e:
-                await ctx.send(f"❌ เกิดข้อผิดพลาดในการเล่นเพลงค่ะ: {e}")
-                # Try next song
-                await self.play_next(ctx)
+                # Skip silently - ไม่ส่ง error message รัวๆ
+                print(f"⚠️ Skipping failed song: {next_song.get('title', 'Unknown')} - {e}")
+                # Try next song (limit to prevent infinite loop)
+                if len(queue) > 0:
+                    await asyncio.sleep(0.5)  # Small delay
+                    await self.play_next(ctx)
         else:
             now_playing.pop(ctx.guild.id, None)
             if ctx.guild.id not in auto_leave_pending:
@@ -156,7 +159,7 @@ class Music(commands.Cog):
                 
                 if playlist_name and entries:
                     added = 0
-                    for entry in entries[:200]:
+                    for entry in entries[:1000]:
                         if not entry:
                             continue
                         
