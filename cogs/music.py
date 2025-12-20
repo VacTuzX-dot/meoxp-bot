@@ -30,21 +30,47 @@ class Music(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
+        self.lavalink_ready = False
     
     async def cog_load(self):
         """เชื่อมต่อ Lavalink เมื่อ cog โหลด"""
-        # รอ bot พร้อมก่อน
-        await self.bot.wait_until_ready()
-        
-        # สร้าง Lavalink node
-        node = wavelink.Node(
-            uri=f"http://{LAVALINK_HOST}:{LAVALINK_PORT}",
-            password=LAVALINK_PASSWORD,
-        )
-        
-        # เชื่อมต่อ
-        await wavelink.Pool.connect(nodes=[node], client=self.bot, cache_capacity=100)
-        print(f"✅ Connected to Lavalink at {LAVALINK_HOST}:{LAVALINK_PORT}")
+        # สร้าง task เชื่อมต่อ Lavalink แบบ background
+        self.bot.loop.create_task(self.connect_lavalink())
+    
+    async def connect_lavalink(self):
+        """เชื่อมต่อ Lavalink (background task)"""
+        try:
+            # รอ bot พร้อมก่อน
+            await self.bot.wait_until_ready()
+            
+            # รอให้ Lavalink พร้อม (retry หลายครั้ง)
+            import aiohttp
+            for attempt in range(30):  # try 30 times
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(
+                            f"http://{LAVALINK_HOST}:{LAVALINK_PORT}/version",
+                            headers={"Authorization": LAVALINK_PASSWORD}
+                        ) as resp:
+                            if resp.status == 200:
+                                break
+                except:
+                    pass
+                print(f"⏳ Waiting for Lavalink... (attempt {attempt + 1}/30)")
+                await asyncio.sleep(2)
+            
+            # สร้าง Lavalink node
+            node = wavelink.Node(
+                uri=f"http://{LAVALINK_HOST}:{LAVALINK_PORT}",
+                password=LAVALINK_PASSWORD,
+            )
+            
+            # เชื่อมต่อ
+            await wavelink.Pool.connect(nodes=[node], client=self.bot, cache_capacity=100)
+            self.lavalink_ready = True
+            print(f"✅ Connected to Lavalink at {LAVALINK_HOST}:{LAVALINK_PORT}")
+        except Exception as e:
+            print(f"❌ Failed to connect to Lavalink: {e}")
     
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):

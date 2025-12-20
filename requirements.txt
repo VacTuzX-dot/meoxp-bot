@@ -3,3 +3,4 @@ python-dotenv
 PyNaCl
 gtts
 wavelink>=3.0.0
+aiohttp
