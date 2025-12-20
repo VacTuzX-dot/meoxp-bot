@@ -5,12 +5,13 @@ services:
     image: ghcr.io/lavalink-devs/lavalink:4
     container_name: meoxp-lavalink
     restart: unless-stopped
+    user: "0:0" # Run as root to fix permission issues
     environment:
       # JVM optimization for low latency
       - _JAVA_OPTIONS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=50
     volumes:
-      - ./lavalink/application.yml:/opt/Lavalink/application.yml
-      - ./lavalink/plugins:/opt/Lavalink/plugins
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - lavalink-plugins:/opt/Lavalink/plugins
     networks:
       - bot-network
     expose:
@@ -39,3 +40,6 @@ services:
 networks:
   bot-network:
     driver: bridge
+
+volumes:
+  lavalink-plugins:
