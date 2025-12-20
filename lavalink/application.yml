@@ -6,7 +6,7 @@ lavalink:
   server:
     password: "meoxp_lavalink_2024"
     sources:
-      youtube: false # ปิด built-in YouTube, ใช้ plugin แทน
+      youtube: false
       bandcamp: true
       soundcloud: true
       twitch: true
@@ -14,16 +14,12 @@ lavalink:
       http: true
       local: false
 
-    # Buffer optimization for low latency
     bufferDurationMs: 400
     frameBufferDurationMs: 1000
-
-    # YouTube optimization
     youtubePlaylistLoadLimit: 200
     playerUpdateInterval: 5
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
-
     gc-warnings: true
 
   plugins:
@@ -37,12 +33,9 @@ plugins:
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
     clients:
-      - ANDROID_MUSIC
-      - ANDROID_TESTSUITE
-      - WEB
-      - TVHTML5EMBEDDED
-    oauth:
-      enabled: false
+      - IOS
+      - ANDROID_LITE
+      - MEDIA_CONNECT
 
 logging:
   file:
