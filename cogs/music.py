@@ -64,7 +64,8 @@ class Music(commands.Cog):
                 else:
                     # Extract fresh data
                     player = await YTDLSource.from_url(
-                        next_song['url'], loop=self.bot.loop
+                        next_song['url'], loop=self.bot.loop,
+                        guild_id=ctx.guild.id
                     )
                 
                 # Store now playing info
@@ -150,7 +151,7 @@ class Music(commands.Cog):
                 await status_msg.edit(content="📚 กำลังโหลด Playlist ค่ะ...")
                 
                 playlist_name, entries = await YTDLSource.extract_playlist(
-                    query, loop=self.bot.loop
+                    query, loop=self.bot.loop, guild_id=ctx.guild.id
                 )
                 
                 if playlist_name and entries:
@@ -193,7 +194,7 @@ class Music(commands.Cog):
             
             if not is_playlist:
                 # Single track
-                data = await YTDLSource.search(query, loop=self.bot.loop)
+                data = await YTDLSource.search(query, loop=self.bot.loop, guild_id=ctx.guild.id)
                 
                 if not data:
                     await status_msg.edit(content="❌ ไม่พบเพลงค่ะ 🥺")
