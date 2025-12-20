@@ -12,3 +12,5 @@ services:
       - "4444:80"
     volumes:
       - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock # ให้บอทเข้าถึง Docker daemon
+
