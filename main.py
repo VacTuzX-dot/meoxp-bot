@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import yt_dlp
 import asyncio
 from collections import deque
-import edge_tts
+from gtts import gTTS
 
 # --- CONFIG ---
 load_dotenv()
@@ -310,6 +310,72 @@ async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------ System Online ------')
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!!help 🎵"))
+
+
+# Auto-leave tracking
+auto_leave_tasks = {}
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    """ออกจากห้องเสียงอัตโนมัติเมื่อไม่มีใครอยู่ในห้อง (cooldown 5 วินาที)"""
+    # ตรวจสอบว่ามีคนออกจากห้องหรือเปลี่ยนห้อง
+    if before.channel is None:
+        return
+    
+    # ข้ามถ้าเป็นบอทเอง
+    if member.id == bot.user.id:
+        return
+    
+    guild = before.channel.guild
+    voice_client = guild.voice_client
+    
+    # ตรวจสอบว่าบอทอยู่ในห้องเสียงหรือไม่
+    if voice_client is None or voice_client.channel is None:
+        return
+    
+    # ตรวจสอบว่าเป็นห้องเดียวกับบอทหรือไม่
+    if before.channel.id != voice_client.channel.id:
+        return
+    
+    # นับจำนวนคนในห้อง (ไม่รวมบอท)
+    members_in_channel = [m for m in voice_client.channel.members if not m.bot]
+    
+    if len(members_in_channel) == 0:
+        # ไม่มีใครอยู่ในห้อง - เริ่ม cooldown
+        guild_id = guild.id
+        
+        # ยกเลิก task เก่าถ้ามี
+        if guild_id in auto_leave_tasks:
+            auto_leave_tasks[guild_id].cancel()
+        
+        async def leave_after_cooldown():
+            try:
+                await asyncio.sleep(5)  # cooldown 5 วินาที
+                
+                # ตรวจสอบอีกครั้งว่ายังไม่มีใครอยู่
+                if voice_client and voice_client.is_connected():
+                    current_members = [m for m in voice_client.channel.members if not m.bot]
+                    if len(current_members) == 0:
+                        # ล้าง queue และ now_playing
+                        queue = get_queue(guild_id)
+                        queue.clear()
+                        now_playing.pop(guild_id, None)
+                        
+                        await voice_client.disconnect()
+                        print(f"🚪 Auto-left voice channel in guild {guild.name} (no members)")
+            except asyncio.CancelledError:
+                pass  # Task ถูกยกเลิกเพราะมีคนเข้ามา
+            finally:
+                auto_leave_tasks.pop(guild_id, None)
+        
+        auto_leave_tasks[guild_id] = asyncio.create_task(leave_after_cooldown())
+    
+    else:
+        # มีคนอยู่ในห้อง - ยกเลิก auto-leave ถ้ามี
+        guild_id = guild.id
+        if guild_id in auto_leave_tasks:
+            auto_leave_tasks[guild_id].cancel()
+            auto_leave_tasks.pop(guild_id, None)
 
 
 # ==================== Commands ====================
@@ -801,11 +867,11 @@ async def stop(ctx):
         await ctx.send("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀")
 
 
-# --- Zone 6: Text-to-Speech ---
-# TTS Voices
+# --- Zone 6: Text-to-Speech (Google TTS) ---
+# TTS Languages for gTTS
 TTS_VOICES = {
-    'th': 'th-TH-PremwadeeNeural',   # ผู้หญิงไทย
-    'en': 'en-US-JennyNeural',        # ผู้หญิงอังกฤษ (สำเนียงอเมริกัน)
+    'th': 'th',   # ภาษาไทย
+    'en': 'en',   # ภาษาอังกฤษ
 }
 
 # TTS Cache System
@@ -820,18 +886,18 @@ TTS_CACHE_MAX_AGE_HOURS = 24  # อายุ cache สูงสุด (ชั่
 # สร้างโฟลเดอร์ cache
 os.makedirs(TTS_CACHE_DIR, exist_ok=True)
 
-def get_cache_key(text: str, voice: str, rate: str) -> str:
+def get_cache_key(text: str, lang: str) -> str:
     """สร้าง hash key สำหรับ cache"""
-    content = f"{text}|{voice}|{rate}"
+    content = f"{text}|{lang}"
     return hashlib.md5(content.encode()).hexdigest()
 
 def get_cache_path(cache_key: str) -> str:
     """ได้ path ของไฟล์ cache"""
     return os.path.join(TTS_CACHE_DIR, f"{cache_key}.mp3")
 
-def get_cached_tts(text: str, voice: str, rate: str) -> str | None:
+def get_cached_tts(text: str, lang: str) -> str | None:
     """ดึง TTS จาก cache (ถ้ามี)"""
-    cache_key = get_cache_key(text, voice, rate)
+    cache_key = get_cache_key(text, lang)
     cache_path = get_cache_path(cache_key)
     
     if os.path.exists(cache_path):
@@ -840,9 +906,9 @@ def get_cached_tts(text: str, voice: str, rate: str) -> str | None:
         return cache_path
     return None
 
-def save_to_cache(text: str, voice: str, rate: str, temp_path: str) -> str:
+def save_to_cache(text: str, lang: str, temp_path: str) -> str:
     """บันทึก TTS ลง cache"""
-    cache_key = get_cache_key(text, voice, rate)
+    cache_key = get_cache_key(text, lang)
     cache_path = get_cache_path(cache_key)
     
     try:
@@ -911,8 +977,8 @@ def get_tts_queue(guild_id):
         tts_queue[guild_id] = deque()
     return tts_queue[guild_id]
 
-async def speak_tts(ctx, text: str, voice: str):
-    """แปลงข้อความเป็นเสียงและเล่นใน Voice Channel (พร้อม Cache)"""
+async def speak_tts(ctx, text: str, lang: str):
+    """แปลงข้อความเป็นเสียงและเล่นใน Voice Channel (พร้อม Cache) - ใช้ Google TTS"""
     if not ctx.author.voice:
         await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
         return
@@ -924,13 +990,12 @@ async def speak_tts(ctx, text: str, voice: str):
         await channel.connect()
         await ctx.send(f"🎀 หนูเข้าห้อง **{channel.name}** แล้วค่ะ~")
     
-    tts_rate = "-15%"
     audio_path = None
     from_cache = False
     
     try:
         # ตรวจสอบ cache ก่อน
-        cached_path = get_cached_tts(text, voice, tts_rate)
+        cached_path = get_cached_tts(text, lang)
         
         if cached_path:
             # ใช้จาก cache (เร็วมาก!)
@@ -945,12 +1010,12 @@ async def speak_tts(ctx, text: str, voice: str):
             temp_path = temp_file.name
             temp_file.close()
             
-            # ใช้ edge-tts สร้างไฟล์เสียง
-            communicate = edge_tts.Communicate(text, voice, rate=tts_rate)
-            await communicate.save(temp_path)
+            # ใช้ Google TTS สร้างไฟล์เสียง
+            tts = gTTS(text=text, lang=lang)
+            tts.save(temp_path)
             
             # บันทึกลง cache
-            audio_path = save_to_cache(text, voice, tts_rate, temp_path)
+            audio_path = save_to_cache(text, lang, temp_path)
             
             # ลบ temp file ถ้า cache สำเร็จ
             if audio_path != temp_path:
@@ -986,8 +1051,8 @@ async def speak_tts(ctx, text: str, voice: str):
         ctx.voice_client.play(source, after=after_tts)
         
         # ส่งข้อความยืนยัน
-        lang_name = "🇹🇭 ไทย" if voice == TTS_VOICES['th'] else "🇺🇸 อังกฤษ"
-        cache_status = "⚡ จาก Cache" if from_cache else "🆕 สร้างใหม่"
+        lang_name = "🇹🇭 ไทย" if lang == TTS_VOICES['th'] else "🇺🇸 อังกฤษ"
+        cache_status = "⚡ จาก Cache" if from_cache else "🆕 สร้างใหม่ (Google TTS)"
         
         embed = discord.Embed(
             title="🗣️ กำลังพูดค่ะ~",
