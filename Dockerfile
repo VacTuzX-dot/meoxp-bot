@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
-# Install ffmpeg for music playback
+# Install ffmpeg for music playback and docker-cli for server status
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
