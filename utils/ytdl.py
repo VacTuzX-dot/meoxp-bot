@@ -48,6 +48,35 @@ ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 ytdl_single = yt_dlp.YoutubeDL(ytdl_single_options)
 
 
+def extract_audio_info(data):
+    """ดึงข้อมูล audio quality จาก data"""
+    abr = data.get('abr')
+    acodec = data.get('acodec')
+    ext = data.get('ext')
+    
+    # ถ้าไม่มี abr/acodec ให้ลองดึงจาก requested_formats หรือ format
+    if not abr or not acodec:
+        # ลองจาก requested_formats (สำหรับ combined formats)
+        if 'requested_formats' in data:
+            for fmt in data['requested_formats']:
+                if fmt.get('acodec') and fmt.get('acodec') != 'none':
+                    abr = abr or fmt.get('abr')
+                    acodec = acodec or fmt.get('acodec')
+                    ext = ext or fmt.get('ext')
+                    break
+        
+        # ลองจาก formats (เลือกอันที่ match กับ format_id)
+        if not abr and 'formats' in data and 'format_id' in data:
+            for fmt in data['formats']:
+                if fmt.get('format_id') == data['format_id']:
+                    abr = fmt.get('abr') or fmt.get('tbr')
+                    acodec = fmt.get('acodec')
+                    ext = fmt.get('ext')
+                    break
+    
+    return abr, acodec, ext
+
+
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
         super().__init__(source, volume)
@@ -55,9 +84,12 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.title = data.get('title')
         self.url = data.get('url')
         self.duration = data.get('duration')
-        self.abr = data.get('abr')  # audio bitrate
-        self.acodec = data.get('acodec')  # audio codec
-        self.ext = data.get('ext')  # extension
+        
+        # ดึง audio info
+        abr, acodec, ext = extract_audio_info(data)
+        self.abr = abr or data.get('abr')
+        self.acodec = acodec or data.get('acodec')
+        self.ext = ext or data.get('ext')
 
     @classmethod
     async def from_url(cls, url, *, loop=None):
@@ -74,3 +106,4 @@ class YTDLSource(discord.PCMVolumeTransformer):
         """สร้าง audio source จาก cached data (เร็วกว่า)"""
         audio_url = data['url']
         return cls(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options), data=data)
+
