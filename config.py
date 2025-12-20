@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-# ใส่ Discord ID ของคุณคนเดียวเท่านั้น (เพื่อความปลอดภัยตอนสั่งรัน Command)
+# Discord ID
 MY_OWNER_ID = 942687569693528084
 
 # Setup Bot
