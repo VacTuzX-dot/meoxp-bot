@@ -21,6 +21,7 @@ class Events(commands.Cog):
         print(f'Logged in as {self.bot.user} (ID: {self.bot.user.id})')
         print('------ System Online ------')
         await self.bot.change_presence(
+            status=discord.Status.idle,
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
                 name="!!help 🎵"
