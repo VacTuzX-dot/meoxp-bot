@@ -3,8 +3,14 @@ import yt_dlp
 import asyncio
 
 # Setup สำหรับ yt-dlp (โหลดเพลง) - Optimized for speed + Playlist support
+# Prefer high bitrate first: 320kbps > 256kbps > 192kbps > 128kbps > any
+HIGH_QUALITY_FORMAT = (
+    'bestaudio[abr>=256]/bestaudio[abr>=192]/bestaudio[abr>=128]/'
+    'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
+)
+
 ytdl_format_options = {
-    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+    'format': HIGH_QUALITY_FORMAT,
     'restrictfilenames': True,
     'noplaylist': False,  # อนุญาต playlist
     'nocheckcertificate': True,
@@ -20,7 +26,7 @@ ytdl_format_options = {
 
 # สำหรับดึงเพลงเดี่ยว (ไม่ใช้ extract_flat)
 ytdl_single_options = {
-    'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+    'format': HIGH_QUALITY_FORMAT,
     'restrictfilenames': True,
     'noplaylist': True,
     'nocheckcertificate': True,
