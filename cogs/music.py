@@ -1,22 +1,23 @@
 import discord
 from discord.ext import commands
-import wavelink
+from collections import deque
 import asyncio
-from typing import cast
 
-from config import bot, LAVALINK_HOST, LAVALINK_PORT, LAVALINK_PASSWORD
+from config import bot
+from utils.ytdl import YTDLSource, ytdl_single
 from views.music_controls import MusicControlView
 
 
-# Track request info (เก็บว่าใครขอเพลง)
-track_requesters = {}
+# Music Queue System
+music_queues = {}
+now_playing = {}
 
 
-def format_duration(milliseconds):
-    """แปลง milliseconds เป็น MM:SS หรือ HH:MM:SS"""
-    if not milliseconds:
+def format_duration(seconds):
+    """แปลงวินาทีเป็น MM:SS หรือ HH:MM:SS"""
+    if not seconds:
         return "Unknown"
-    seconds = int(milliseconds / 1000)
+    seconds = int(seconds)
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
@@ -25,204 +26,236 @@ def format_duration(milliseconds):
     return f"{minutes}:{secs:02d}"
 
 
+def get_queue(guild_id):
+    if guild_id not in music_queues:
+        music_queues[guild_id] = deque()
+    return music_queues[guild_id]
+
+
 class Music(commands.Cog):
-    """Music commands cog - using Lavalink + wavelink"""
+    """Music commands cog - using yt-dlp (optimized)"""
     
     def __init__(self, bot):
         self.bot = bot
-        self.lavalink_ready = False
     
-    async def cog_load(self):
-        """เชื่อมต่อ Lavalink เมื่อ cog โหลด"""
-        # สร้าง task เชื่อมต่อ Lavalink แบบ background
-        self.bot.loop.create_task(self.connect_lavalink())
-    
-    async def connect_lavalink(self):
-        """เชื่อมต่อ Lavalink (background task)"""
-        try:
-            # รอ bot พร้อมก่อน
-            await self.bot.wait_until_ready()
-            
-            # รอให้ Lavalink พร้อม (retry หลายครั้ง)
-            import aiohttp
-            for attempt in range(30):  # try 30 times
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
-                            f"http://{LAVALINK_HOST}:{LAVALINK_PORT}/version",
-                            headers={"Authorization": LAVALINK_PASSWORD}
-                        ) as resp:
-                            if resp.status == 200:
-                                break
-                except:
-                    pass
-                print(f"⏳ Waiting for Lavalink... (attempt {attempt + 1}/30)")
-                await asyncio.sleep(2)
-            
-            # สร้าง Lavalink node
-            node = wavelink.Node(
-                uri=f"http://{LAVALINK_HOST}:{LAVALINK_PORT}",
-                password=LAVALINK_PASSWORD,
-            )
-            
-            # เชื่อมต่อ
-            await wavelink.Pool.connect(nodes=[node], client=self.bot, cache_capacity=100)
-            self.lavalink_ready = True
-            print(f"✅ Connected to Lavalink at {LAVALINK_HOST}:{LAVALINK_PORT}")
-        except Exception as e:
-            print(f"❌ Failed to connect to Lavalink: {e}")
-    
-    @commands.Cog.listener()
-    async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
-        """Lavalink node พร้อมใช้งาน"""
-        print(f"🎵 Lavalink Node '{payload.node.identifier}' is ready!")
-    
-    @commands.Cog.listener()
-    async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
-        """เพลงเริ่มเล่น"""
-        player = payload.player
-        track = payload.track
+    async def play_next(self, ctx):
+        """เล่นเพลงถัดไปใน queue"""
+        queue = get_queue(ctx.guild.id)
         
-        if not player or not player.guild:
-            return
+        # Import here to avoid circular import
+        from cogs.events import auto_leave_pending
         
-        # หา channel ที่จะส่งข้อความ
-        channel = player.guild.get_channel(player.channel.id) if hasattr(player, 'text_channel_id') else None
-        if not channel and hasattr(player, 'ctx'):
-            channel = player.ctx.channel
-        
-        if channel:
-            # สร้าง embed
-            duration_str = format_duration(track.length)
+        if len(queue) > 0:
+            next_song = queue.popleft()
             
-            # ดึงข้อมูลคุณภาพ
-            quality_str = "Lavalink"
-            if hasattr(track, 'source'):
-                quality_str = track.source.capitalize()
-            
-            requester = track_requesters.get(track.identifier, "Unknown")
-            
-            embed = discord.Embed(
-                title="🎶 กำลังเล่นเพลงค่ะ~",
-                description=f"**{track.title}**",
-                color=0xFF69B4
-            )
-            embed.add_field(name="⏱️ ความยาว", value=duration_str, inline=True)
-            embed.add_field(name="🎧 Source", value=quality_str, inline=True)
-            embed.add_field(name="📋 Queue", value=f"{len(player.queue)} เพลง", inline=True)
-            if track.author:
-                embed.add_field(name="👤 ศิลปิน", value=track.author, inline=True)
-            embed.set_footer(text=f"ขอโดย: {requester} 💕")
-            
-            if track.artwork:
-                embed.set_thumbnail(url=track.artwork)
-            
-            await channel.send(embed=embed)
-    
-    @commands.Cog.listener()
-    async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
-        """เพลงจบ - เช็คว่า queue หมดหรือยัง"""
-        player = payload.player
-        
-        if not player:
-            return
-        
-        # ถ้า queue หมดแล้ว
-        if player.queue.is_empty and not player.playing:
-            # Import here to avoid circular import
-            from cogs.events import auto_leave_pending
-            
-            if player.guild.id not in auto_leave_pending:
-                if hasattr(player, 'ctx'):
-                    await player.ctx.send("📭 เพลงใน Queue หมดแล้วค่ะ~ ขอเพลงใหม่ได้เลยนะคะ 🎵")
+            try:
+                # Use cached audio_url if available (faster)
+                if 'audio_url' in next_song and next_song['audio_url']:
+                    player = await YTDLSource.from_data({
+                        'url': next_song['audio_url'],
+                        'title': next_song['title'],
+                        'duration': next_song.get('duration'),
+                        'abr': next_song.get('abr'),
+                        'acodec': next_song.get('acodec'),
+                        'ext': next_song.get('ext'),
+                        'thumbnail': next_song.get('thumbnail'),
+                        'uploader': next_song.get('uploader'),
+                    }, loop=self.bot.loop)
+                else:
+                    # Extract fresh data
+                    player = await YTDLSource.from_url(
+                        next_song['url'], loop=self.bot.loop
+                    )
+                
+                # Store now playing info
+                now_playing[ctx.guild.id] = {
+                    'title': player.title,
+                    'url': next_song.get('url') or next_song.get('webpage_url'),
+                    'requester': next_song['requester'],
+                    'duration': player.duration,
+                    'abr': player.abr,
+                    'acodec': player.acodec,
+                    'thumbnail': player.thumbnail,
+                    'uploader': player.uploader,
+                }
+                
+                def after_playing(error):
+                    if error:
+                        print(f'Player error: {error}')
+                    asyncio.run_coroutine_threadsafe(
+                        self.play_next(ctx), self.bot.loop
+                    )
+                
+                ctx.voice_client.play(player, after=after_playing)
+                
+                # Create embed
+                current = now_playing[ctx.guild.id]
+                duration_str = format_duration(current['duration'])
+                
+                # Quality info
+                quality_parts = []
+                if current['abr']:
+                    quality_parts.append(f"{int(current['abr'])}kbps")
+                if current['acodec']:
+                    quality_parts.append(current['acodec'].upper())
+                quality_str = " • ".join(quality_parts) if quality_parts else "Auto"
+                
+                embed = discord.Embed(
+                    title="🎶 กำลังเล่นเพลงค่ะ~",
+                    description=f"**{current['title']}**",
+                    color=0xFF69B4
+                )
+                embed.add_field(name="⏱️ ความยาว", value=duration_str, inline=True)
+                embed.add_field(name="🎧 คุณภาพ", value=quality_str, inline=True)
+                embed.add_field(name="📋 Queue", value=f"{len(queue)} เพลง", inline=True)
+                if current.get('uploader'):
+                    embed.add_field(name="👤 ช่อง", value=current['uploader'], inline=True)
+                embed.set_footer(text=f"ขอโดย: {next_song['requester']} 💕")
+                
+                if current.get('thumbnail'):
+                    embed.set_thumbnail(url=current['thumbnail'])
+                
+                await ctx.send(embed=embed, view=MusicControlView(ctx, get_queue, now_playing))
+                
+            except Exception as e:
+                await ctx.send(f"❌ เกิดข้อผิดพลาดในการเล่นเพลงค่ะ: {e}")
+                # Try next song
+                await self.play_next(ctx)
+        else:
+            now_playing.pop(ctx.guild.id, None)
+            if ctx.guild.id not in auto_leave_pending:
+                await ctx.send("📭 เพลงใน Queue หมดแล้วค่ะ~ ขอเพลงใหม่ได้เลยนะคะ 🎵")
 
     @commands.command()
     async def play(self, ctx, *, query: str):
-        """เล่นเพลงหรือเพิ่มเข้า queue"""
-        if not ctx.author.voice:
+        """เล่นเพลงหรือเพิ่มเข้า queue (รองรับ playlist)"""
+        if not ctx.message.author.voice:
             await ctx.send("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤")
             return
 
-        channel = ctx.author.voice.channel
+        channel = ctx.message.author.voice.channel
         
-        # เชื่อม voice channel
-        player = cast(wavelink.Player, ctx.voice_client)
-        if not player:
-            player = await channel.connect(cls=wavelink.Player)
-            player.ctx = ctx  # เก็บ context สำหรับส่งข้อความ
+        if ctx.voice_client is None:
+            await channel.connect()
             await ctx.send(f"🎀 หนูเข้าห้อง **{channel.name}** แล้วค่ะ~")
         
-        # ตั้งค่า auto-play
-        player.autoplay = wavelink.AutoPlayMode.partial
-        
-        # ค้นหาเพลง
+        queue = get_queue(ctx.guild.id)
         status_msg = await ctx.send("🔍 กำลังค้นหาเพลงค่ะ...")
         
         try:
-            # ตรวจสอบว่าเป็น URL หรือ search
-            if not query.startswith('http'):
-                query = f"ytsearch:{query}"
+            # Check if playlist
+            is_playlist = 'list=' in query or 'playlist' in query.lower()
             
-            tracks = await wavelink.Playable.search(query)
-            
-            if not tracks:
-                await status_msg.edit(content="❌ ไม่พบเพลงค่ะ 🥺")
-                return
-            
-            # ถ้าเป็น playlist
-            if isinstance(tracks, wavelink.Playlist):
-                added = 0
-                for track in tracks.tracks[:200]:  # limit 200
-                    track_requesters[track.identifier] = ctx.author.name
-                    await player.queue.put_wait(track)
-                    added += 1
+            if is_playlist:
+                await status_msg.edit(content="📚 กำลังโหลด Playlist ค่ะ...")
                 
-                await status_msg.delete()
-                
-                embed = discord.Embed(
-                    title="📚 เพิ่ม Playlist เข้า Queue แล้วค่ะ~",
-                    description=f"**{tracks.name}**\n\n🎵 เพิ่ม {added} เพลงเข้า Queue",
-                    color=0xFF69B4
+                playlist_name, entries = await YTDLSource.extract_playlist(
+                    query, loop=self.bot.loop
                 )
-                embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
-                await ctx.send(embed=embed)
-            else:
-                # เพลงเดี่ยว
-                track = tracks[0]
-                track_requesters[track.identifier] = ctx.author.name
+                
+                if playlist_name and entries:
+                    added = 0
+                    for entry in entries[:200]:
+                        if not entry:
+                            continue
+                        
+                        song_url = (
+                            entry.get('url') or 
+                            entry.get('webpage_url') or 
+                            f"https://youtube.com/watch?v={entry.get('id')}"
+                        )
+                        
+                        queue.append({
+                            'url': song_url,
+                            'title': entry.get('title', 'Unknown'),
+                            'duration': entry.get('duration'),
+                            'thumbnail': entry.get('thumbnail'),
+                            'uploader': entry.get('uploader'),
+                            'requester': ctx.author.name
+                        })
+                        added += 1
+                    
+                    await status_msg.delete()
+                    
+                    embed = discord.Embed(
+                        title="📚 เพิ่ม Playlist เข้า Queue แล้วค่ะ~",
+                        description=f"**{playlist_name}**\n\n🎵 เพิ่ม {added} เพลง",
+                        color=0xFF69B4
+                    )
+                    embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
+                    await ctx.send(embed=embed)
+                    
+                    if not (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+                        await self.play_next(ctx)
+                    return
+                else:
+                    is_playlist = False
+            
+            if not is_playlist:
+                # Single track
+                data = await YTDLSource.search(query, loop=self.bot.loop)
+                
+                if not data:
+                    await status_msg.edit(content="❌ ไม่พบเพลงค่ะ 🥺")
+                    return
+                
+                audio_url = data.get('url')
+                duration = data.get('duration')
+                abr = data.get('abr')
+                acodec = data.get('acodec')
                 
                 await status_msg.delete()
                 
-                if player.playing:
-                    await player.queue.put_wait(track)
+                song_info = {
+                    'url': data.get('webpage_url') or query,
+                    'title': data.get('title', 'Unknown'),
+                    'audio_url': audio_url,
+                    'duration': duration,
+                    'abr': abr,
+                    'acodec': acodec,
+                    'thumbnail': data.get('thumbnail'),
+                    'uploader': data.get('uploader'),
+                    'requester': ctx.author.name
+                }
+                
+                if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
+                    queue.append(song_info)
+                    
+                    duration_str = format_duration(duration)
+                    quality_parts = []
+                    if abr:
+                        quality_parts.append(f"{int(abr)}kbps")
+                    if acodec:
+                        quality_parts.append(acodec.upper())
+                    quality_str = " • ".join(quality_parts) if quality_parts else ""
                     
                     embed = discord.Embed(
                         title="📥 เพิ่มเข้า Queue แล้วค่ะ~",
-                        description=f"**{track.title}**",
+                        description=f"**{data['title']}**",
                         color=0xFF69B4
                     )
-                    embed.add_field(name="⏱️ ความยาว", value=format_duration(track.length), inline=True)
-                    embed.add_field(name="📋 ตำแหน่ง", value=f"#{len(player.queue)}", inline=True)
-                    embed.set_footer(text=f"ขอโดย: {ctx.author.name} 💕")
-                    if track.artwork:
-                        embed.set_thumbnail(url=track.artwork)
+                    info_str = f"⏱️ {duration_str}"
+                    if quality_str:
+                        info_str += f" • 🎧 {quality_str}"
+                    embed.add_field(name="ℹ️ ข้อมูล", value=info_str, inline=False)
+                    embed.set_footer(text=f"ตำแหน่ง #{len(queue)} | ขอโดย: {ctx.author.name}")
+                    
+                    if data.get('thumbnail'):
+                        embed.set_thumbnail(url=data['thumbnail'])
+                    
                     await ctx.send(embed=embed)
                 else:
-                    await player.queue.put_wait(track)
-            
-            # เริ่มเล่นถ้ายังไม่เล่น
-            if not player.playing:
-                await player.play(player.queue.get())
+                    queue.append(song_info)
+                    await self.play_next(ctx)
             
         except Exception as e:
-            await status_msg.edit(content=f"❌ เกิดข้อผิดพลาดค่ะ: {e} 🥺")
+            await status_msg.edit(content=f"❌ ไม่สามารถโหลดเพลงได้ค่ะ: {e} 🥺")
 
     @commands.command()
     async def pause(self, ctx):
         """หยุดเพลงชั่วคราว"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if player and player.playing:
-            await player.pause(True)
+        if ctx.voice_client and ctx.voice_client.is_playing():
+            ctx.voice_client.pause()
             await ctx.send("⏸️ หยุดเพลงชั่วคราวค่ะ~ กด `!!resume` เพื่อเล่นต่อนะคะ 🎵")
         else:
             await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~")
@@ -230,9 +263,8 @@ class Music(commands.Cog):
     @commands.command()
     async def resume(self, ctx):
         """เล่นเพลงต่อ"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if player and player.paused:
-            await player.pause(False)
+        if ctx.voice_client and ctx.voice_client.is_paused():
+            ctx.voice_client.resume()
             await ctx.send("▶️ เล่นเพลงต่อค่ะ~ 🎶")
         else:
             await ctx.send("❌ ไม่มีเพลงที่หยุดอยู่นะคะ~")
@@ -240,9 +272,8 @@ class Music(commands.Cog):
     @commands.command()
     async def skip(self, ctx):
         """ข้ามไปเพลงถัดไป"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if player and player.playing:
-            await player.skip()
+        if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+            ctx.voice_client.stop()
             await ctx.send("⏭️ ข้ามไปเพลงถัดไปค่ะ~")
         else:
             await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~")
@@ -250,107 +281,106 @@ class Music(commands.Cog):
     @commands.command(name='queue', aliases=['q'])
     async def show_queue(self, ctx):
         """แสดง queue"""
-        player = cast(wavelink.Player, ctx.voice_client)
+        queue = get_queue(ctx.guild.id)
+        current = now_playing.get(ctx.guild.id)
         
-        if not player or (not player.playing and player.queue.is_empty):
+        if not current and len(queue) == 0:
             await ctx.send("📭 Queue ว่างเปล่าค่ะ~ ขอเพลงได้เลยนะคะ! 🎵")
             return
         
         embed = discord.Embed(title="🎵 รายการเพลง", color=0xFF69B4)
         
-        # กำลังเล่น
-        if player.current:
-            current = player.current
-            requester = track_requesters.get(current.identifier, "Unknown")
+        if current:
             embed.add_field(
                 name="🎶 กำลังเล่น",
-                value=f"**{current.title}**\nขอโดย: {requester}",
+                value=f"**{current['title']}**\nขอโดย: {current['requester']}",
                 inline=False
             )
         
-        # Queue
-        if not player.queue.is_empty:
+        if len(queue) > 0:
             queue_list = ""
-            for i, track in enumerate(list(player.queue)[:10], 1):
-                requester = track_requesters.get(track.identifier, "Unknown")
-                queue_list += f"`{i}.` {track.title} - {requester}\n"
+            for i, song in enumerate(list(queue)[:10], 1):
+                duration_str = format_duration(song.get('duration'))
+                queue_list += f"`{i}.` {song['title']} [{duration_str}]\n"
             
-            if len(player.queue) > 10:
-                queue_list += f"\n... และอีก {len(player.queue) - 10} เพลงค่ะ"
+            if len(queue) > 10:
+                queue_list += f"\n... และอีก {len(queue) - 10} เพลงค่ะ"
             
             embed.add_field(name="📋 ถัดไป", value=queue_list, inline=False)
         
-        embed.set_footer(text=f"ทั้งหมด {len(player.queue)} เพลงใน Queue ค่ะ 💕")
-        await ctx.send(embed=embed)
+        embed.set_footer(text=f"ทั้งหมด {len(queue)} เพลงใน Queue ค่ะ 💕")
+        await ctx.send(embed=embed, view=MusicControlView(ctx, get_queue, now_playing))
 
     @commands.command(name='np', aliases=['nowplaying'])
-    async def now_playing(self, ctx):
+    async def now_playing_cmd(self, ctx):
         """แสดงเพลงที่กำลังเล่น"""
-        player = cast(wavelink.Player, ctx.voice_client)
+        current = now_playing.get(ctx.guild.id)
         
-        if not player or not player.current:
+        if current:
+            duration_str = format_duration(current.get('duration'))
+            
+            quality_parts = []
+            if current.get('abr'):
+                quality_parts.append(f"{int(current['abr'])}kbps")
+            if current.get('acodec'):
+                quality_parts.append(current['acodec'].upper())
+            quality_str = " • ".join(quality_parts) if quality_parts else "Auto"
+            
+            embed = discord.Embed(title="🎶 กำลังเล่นอยู่ค่ะ~", color=0xFF69B4)
+            embed.add_field(name="🎵 เพลง", value=f"**{current['title']}**", inline=False)
+            embed.add_field(name="⏱️ ความยาว", value=duration_str, inline=True)
+            embed.add_field(name="🎧 คุณภาพ", value=quality_str, inline=True)
+            embed.add_field(name="📋 Queue", value=f"{len(get_queue(ctx.guild.id))} เพลง", inline=True)
+            if current.get('uploader'):
+                embed.add_field(name="👤 ช่อง", value=current['uploader'], inline=True)
+            embed.add_field(name="👤 ขอโดย", value=current['requester'], inline=True)
+            embed.set_footer(text="เพลงเพราะมากเลยค่ะ~ 💕")
+            
+            if current.get('thumbnail'):
+                embed.set_thumbnail(url=current['thumbnail'])
+            
+            await ctx.send(embed=embed, view=MusicControlView(ctx, get_queue, now_playing))
+        else:
             await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะ~ ขอเพลงได้เลยค่ะ! 🎵")
-            return
-        
-        track = player.current
-        duration_str = format_duration(track.length)
-        position_str = format_duration(player.position)
-        
-        requester = track_requesters.get(track.identifier, "Unknown")
-        
-        embed = discord.Embed(title="🎶 กำลังเล่นอยู่ค่ะ~", color=0xFF69B4)
-        embed.add_field(name="🎵 เพลง", value=f"**{track.title}**", inline=False)
-        embed.add_field(name="⏱️ ความยาว", value=f"{position_str} / {duration_str}", inline=True)
-        embed.add_field(name="🎧 Source", value=track.source.capitalize() if hasattr(track, 'source') else "YouTube", inline=True)
-        embed.add_field(name="📋 Queue", value=f"{len(player.queue)} เพลง", inline=True)
-        if track.author:
-            embed.add_field(name="👤 ศิลปิน", value=track.author, inline=True)
-        embed.add_field(name="👤 ขอโดย", value=requester, inline=True)
-        embed.set_footer(text="เพลงเพราะมากเลยค่ะ~ 💕")
-        
-        if track.artwork:
-            embed.set_thumbnail(url=track.artwork)
-        
-        await ctx.send(embed=embed)
 
     @commands.command()
     async def clear(self, ctx):
         """ล้าง queue"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if player:
-            player.queue.clear()
-            await ctx.send("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~ 💕")
-        else:
-            await ctx.send("❌ ไม่มี Queue ที่จะล้างค่ะ~")
+        queue = get_queue(ctx.guild.id)
+        queue.clear()
+        await ctx.send("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~ 💕")
 
     @commands.command()
     async def stop(self, ctx):
         """หยุดเพลงและออกจากห้อง"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if player:
-            player.queue.clear()
-            await player.disconnect()
+        if ctx.voice_client:
+            queue = get_queue(ctx.guild.id)
+            queue.clear()
+            now_playing.pop(ctx.guild.id, None)
+            await ctx.voice_client.disconnect()
             await ctx.send("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀")
-        else:
-            await ctx.send("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~")
 
     @commands.command()
     async def volume(self, ctx, vol: int = None):
-        """ปรับเสียง (0-100)"""
-        player = cast(wavelink.Player, ctx.voice_client)
-        if not player:
+        """ปรับระดับเสียง (10-100)"""
+        if not ctx.voice_client:
             await ctx.send("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~")
             return
         
+        if not ctx.voice_client.source:
+            await ctx.send("❌ ไม่มีเพลงที่กำลังเล่นอยู่ค่ะ~")
+            return
+        
         if vol is None:
-            await ctx.send(f"🔊 ระดับเสียงปัจจุบัน: **{player.volume}%**")
+            current_vol = int(ctx.voice_client.source.volume * 100)
+            await ctx.send(f"🔊 ระดับเสียงปัจจุบัน: **{current_vol}%**")
             return
         
-        if not 0 <= vol <= 100:
-            await ctx.send("❌ ระดับเสียงต้องอยู่ระหว่าง 0-100 ค่ะ~")
+        if not 10 <= vol <= 100:
+            await ctx.send("❌ ระดับเสียงต้องอยู่ระหว่าง 10-100 ค่ะ~")
             return
         
-        await player.set_volume(vol)
+        ctx.voice_client.source.volume = vol / 100
         await ctx.send(f"🔊 ปรับระดับเสียงเป็น **{vol}%** แล้วค่ะ~")
 
 

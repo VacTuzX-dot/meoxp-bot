@@ -1,45 +1,14 @@
 version: "3.8"
 
 services:
-  lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
-    container_name: meoxp-lavalink
-    restart: unless-stopped
-    user: "0:0" # Run as root to fix permission issues
-    environment:
-      # JVM optimization for low latency
-      - _JAVA_OPTIONS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:MaxGCPauseMillis=50
-    volumes:
-      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
-      - lavalink-plugins:/opt/Lavalink/plugins
-    networks:
-      - bot-network
-    expose:
-      - "2333"
-
   discord-bot:
     build: .
     container_name: meoxp-discord-bot
     restart: unless-stopped
     env_file:
       - .env
-    depends_on:
-      - lavalink
-    environment:
-      - LAVALINK_HOST=lavalink
-      - LAVALINK_PORT=2333
-      - LAVALINK_PASSWORD=meoxp_lavalink_2024
     ports:
       - "4444:80"
     volumes:
       - ./logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - bot-network
-
-networks:
-  bot-network:
-    driver: bridge
-
-volumes:
-  lavalink-plugins:
