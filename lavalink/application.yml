@@ -1,0 +1,48 @@
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: "meoxp_lavalink_2024"
+    sources:
+      youtube: true
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+
+    # Buffer optimization for low latency
+    bufferDurationMs: 400
+    frameBufferDurationMs: 1000
+
+    # YouTube optimization
+    youtubePlaylistLoadLimit: 200
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
+
+    gc-warnings: true
+
+  plugins:
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.5.2"
+      snapshot: false
+
+plugins:
+  youtube:
+    enabled: true
+    clients:
+      - MUSIC
+      - ANDROID_TESTSUITE
+      - WEB
+      - TVHTML5EMBEDDED
+
+logging:
+  file:
+    path: ./logs/
+  level:
+    root: INFO
+    lavalink: INFO
+# JVM optimization is handled in docker-compose

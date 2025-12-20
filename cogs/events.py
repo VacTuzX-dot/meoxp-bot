@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
+import wavelink
 import asyncio
+from typing import cast
 
 from config import bot
 
@@ -39,10 +41,13 @@ class Events(commands.Cog):
         voice_client = guild.voice_client
         
         # ตรวจสอบว่าบอทอยู่ในห้องเสียงหรือไม่
-        if voice_client is None or voice_client.channel is None:
+        if voice_client is None:
             return
         
-        # ตรวจสอบว่าเป็นห้องเดียวกับบอทหรือไม่
+        # ตรวจสอบว่าบอทอยู่ในห้องเดียวกันหรือไม่
+        if not hasattr(voice_client, 'channel') or voice_client.channel is None:
+            return
+        
         if before.channel.id != voice_client.channel.id:
             return
         
@@ -62,21 +67,18 @@ class Events(commands.Cog):
                     await asyncio.sleep(5)  # cooldown 5 วินาที
                     
                     # ตรวจสอบอีกครั้งว่ายังไม่มีใครอยู่
-                    if voice_client and voice_client.is_connected():
-                        current_members = [m for m in voice_client.channel.members if not m.bot]
+                    vc = guild.voice_client
+                    if vc and hasattr(vc, 'channel') and vc.channel:
+                        current_members = [m for m in vc.channel.members if not m.bot]
                         if len(current_members) == 0:
-                            # Import here to avoid circular import
-                            from cogs.music import get_queue, now_playing
-                            
-                            # ล้าง queue และ now_playing
-                            queue = get_queue(guild_id)
-                            queue.clear()
-                            now_playing.pop(guild_id, None)
-                            
-                            # ตั้ง flag ว่ากำลัง auto-leave (เพื่อไม่ส่งข้อความ "เพลงหมด")
+                            # ตั้ง flag ว่ากำลัง auto-leave
                             auto_leave_pending.add(guild_id)
                             
-                            await voice_client.disconnect()
+                            # ถ้าเป็น wavelink player
+                            if isinstance(vc, wavelink.Player):
+                                vc.queue.clear()
+                            
+                            await vc.disconnect()
                             
                             # ลบ flag หลัง disconnect
                             auto_leave_pending.discard(guild_id)

@@ -1,5 +1,5 @@
 discord.py[voice]
 python-dotenv
-yt-dlp
 PyNaCl
 gtts
+wavelink>=3.0.0
