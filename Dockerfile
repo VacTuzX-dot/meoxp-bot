@@ -10,11 +10,15 @@ WORKDIR /app
 COPY package.json ./
 COPY bun.lockb* ./
 
-RUN bun install
+RUN bun install --production
 
 COPY . .
 
 # Build TypeScript
 RUN bun run build
 
-CMD ["bun", "run", "start"]
+# Performance optimizations
+ENV UV_THREADPOOL_SIZE=16
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+CMD ["bun", "run", "dist/index.js"]

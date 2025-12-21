@@ -11,6 +11,12 @@ services:
     volumes:
       - ./logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
 
   dashboard:
     build: ./dashboard
