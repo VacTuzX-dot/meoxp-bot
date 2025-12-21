@@ -10,6 +10,9 @@ const {
 const { spawn } = require("child_process");
 const YouTube = require("youtube-sr").default;
 
+// Max playlist size
+const MAX_PLAYLIST_SIZE = 500;
+
 // Helper to extract video ID from various YouTube URL formats
 function extractVideoId(url) {
   const patterns = [
@@ -21,6 +24,62 @@ function extractVideoId(url) {
     if (match) return match[1];
   }
   return null;
+}
+
+// Helper to extract playlist ID
+function extractPlaylistId(url) {
+  const match = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+// Get playlist info using yt-dlp
+async function getPlaylistInfo(url) {
+  return new Promise((resolve, reject) => {
+    const ytdlp = spawn("yt-dlp", [
+      "-j",
+      "--flat-playlist",
+      "--no-warnings",
+      url,
+    ]);
+
+    let stdout = "";
+    let stderr = "";
+
+    ytdlp.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ytdlp.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ytdlp.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || "Failed to get playlist info"));
+        return;
+      }
+      try {
+        // Each line is a JSON object for each video
+        const lines = stdout
+          .trim()
+          .split("\n")
+          .filter((line) => line);
+        const videos = lines.map((line) => {
+          const info = JSON.parse(line);
+          return {
+            title: info.title || "Unknown",
+            url: `https://www.youtube.com/watch?v=${info.id}`,
+            duration: info.duration,
+            thumbnail: info.thumbnails?.[0]?.url || null,
+            uploader: info.uploader || info.channel || "Unknown",
+          };
+        });
+        resolve(videos);
+      } catch (e) {
+        reject(new Error("Failed to parse playlist info"));
+      }
+    });
+  });
 }
 
 // Get video info using yt-dlp with audio format details
@@ -233,58 +292,115 @@ module.exports = {
     const statusMsg = await message.reply("🔍 กำลังค้นหาเพลงค่ะ...");
 
     try {
-      let videoUrl;
-      let videoInfo;
+      let songsToAdd = [];
 
-      // Check if it's a YouTube URL
-      const videoId = extractVideoId(query);
+      // Check if it's a playlist
+      const playlistId = extractPlaylistId(query);
 
-      if (videoId) {
-        videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        console.log("Detected YouTube URL:", videoUrl);
-      } else {
-        // Search for video using youtube-sr
-        console.log("Searching for:", query);
+      if (playlistId) {
+        console.log("Detected playlist:", playlistId);
+        await statusMsg.edit(
+          "📚 กำลังโหลด Playlist ค่ะ... (อาจใช้เวลาสักครู่)"
+        );
+
         try {
-          const searchResults = await YouTube.searchOne(query);
-          if (!searchResults) {
-            return statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
+          const playlistVideos = await getPlaylistInfo(query);
+
+          // Check if playlist exceeds limit
+          if (playlistVideos.length > MAX_PLAYLIST_SIZE) {
+            console.warn(
+              `[PLAYLIST] Playlist has ${playlistVideos.length} videos, limiting to ${MAX_PLAYLIST_SIZE}`
+            );
           }
-          videoUrl = searchResults.url;
-          console.log("Search result:", searchResults.title, videoUrl);
+
+          // Take only up to MAX_PLAYLIST_SIZE videos
+          const videosToAdd = playlistVideos.slice(0, MAX_PLAYLIST_SIZE);
+
+          for (const video of videosToAdd) {
+            songsToAdd.push({
+              title: video.title,
+              url: video.url,
+              duration: video.duration,
+              durationInfo: formatDuration(video.duration),
+              thumbnail: video.thumbnail,
+              requester: message.author.username,
+              uploader: video.uploader,
+              // Audio quality will be fetched when playing
+              audioCodec: "Unknown",
+              audioBitrate: "Unknown",
+              audioSampleRate: 48000,
+              audioChannels: 2,
+              audioExt: "webm",
+            });
+          }
+
+          const addedCount = songsToAdd.length;
+          const totalCount = playlistVideos.length;
+          let statusText = `📚 เพิ่ม Playlist **${addedCount}** เพลงแล้วค่ะ~`;
+          if (totalCount > MAX_PLAYLIST_SIZE) {
+            statusText += `\n⚠️ Playlist มี ${totalCount} เพลง แต่เพิ่มได้สูงสุด ${MAX_PLAYLIST_SIZE} เพลงค่ะ`;
+          }
+
+          await statusMsg.edit(statusText);
         } catch (err) {
-          console.error("Search failed:", err.message);
-          return statusMsg.edit("❌ ไม่สามารถค้นหาเพลงได้ค่ะ 🥺");
+          console.error("Playlist failed:", err.message);
+          return statusMsg.edit("❌ ไม่สามารถโหลด Playlist ได้ค่ะ 🥺");
         }
+      } else {
+        // Single video or search
+        let videoUrl;
+        let videoInfo;
+
+        // Check if it's a YouTube URL
+        const videoId = extractVideoId(query);
+
+        if (videoId) {
+          videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+          console.log("Detected YouTube URL:", videoUrl);
+        } else {
+          // Search for video using youtube-sr
+          console.log("Searching for:", query);
+          try {
+            const searchResults = await YouTube.searchOne(query);
+            if (!searchResults) {
+              return statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
+            }
+            videoUrl = searchResults.url;
+            console.log("Search result:", searchResults.title, videoUrl);
+          } catch (err) {
+            console.error("Search failed:", err.message);
+            return statusMsg.edit("❌ ไม่สามารถค้นหาเพลงได้ค่ะ 🥺");
+          }
+        }
+
+        // Get video info using yt-dlp
+        try {
+          videoInfo = await getVideoInfo(videoUrl);
+          console.log("Video info:", videoInfo.title);
+        } catch (err) {
+          console.error("Failed to get video info:", err.message);
+          return statusMsg.edit("❌ ไม่สามารถดึงข้อมูลวิดีโอได้ค่ะ 🥺");
+        }
+
+        songsToAdd.push({
+          title: videoInfo.title,
+          url: videoUrl,
+          duration: videoInfo.duration,
+          durationInfo: formatDuration(videoInfo.duration),
+          thumbnail: videoInfo.thumbnail,
+          requester: message.author.username,
+          uploader: videoInfo.uploader,
+          // Audio quality
+          audioCodec: videoInfo.audioCodec,
+          audioBitrate: videoInfo.audioBitrate,
+          audioSampleRate: videoInfo.audioSampleRate,
+          audioChannels: videoInfo.audioChannels,
+          audioExt: videoInfo.audioExt,
+        });
       }
 
-      // Get video info using yt-dlp
-      try {
-        videoInfo = await getVideoInfo(videoUrl);
-        console.log("Video info:", videoInfo.title);
-      } catch (err) {
-        console.error("Failed to get video info:", err.message);
-        return statusMsg.edit("❌ ไม่สามารถดึงข้อมูลวิดีโอได้ค่ะ 🥺");
-      }
-
-      const song = {
-        title: videoInfo.title,
-        url: videoUrl,
-        duration: videoInfo.duration,
-        durationInfo: formatDuration(videoInfo.duration),
-        thumbnail: videoInfo.thumbnail,
-        requester: message.author.username,
-        uploader: videoInfo.uploader,
-        // Audio quality
-        audioCodec: videoInfo.audioCodec,
-        audioBitrate: videoInfo.audioBitrate,
-        audioSampleRate: videoInfo.audioSampleRate,
-        audioChannels: videoInfo.audioChannels,
-        audioExt: videoInfo.audioExt,
-      };
-
-      // Add to queue
-      queue.songs.push(song);
+      // Add all songs to queue
+      queue.songs.push(...songsToAdd);
 
       // Connect to voice if needed
       if (
@@ -313,9 +429,15 @@ module.exports = {
 
       if (!queue.nowPlaying) {
         processQueue(message.guild.id, client, message.channel);
-        await statusMsg.delete().catch(() => {});
-      } else {
-        // Format audio quality string
+        // For playlists, statusMsg already shows playlist info, delete after 5 sec
+        if (playlistId) {
+          setTimeout(() => statusMsg.delete().catch(() => {}), 5000);
+        } else {
+          await statusMsg.delete().catch(() => {});
+        }
+      } else if (!playlistId && songsToAdd.length === 1) {
+        // Single song added to queue - show queue embed
+        const song = songsToAdd[0];
         const audioQuality = formatAudioQuality(song);
 
         const embed = new EmbedBuilder()
@@ -341,6 +463,9 @@ module.exports = {
 
         if (song.thumbnail) embed.setThumbnail(song.thumbnail);
         await statusMsg.edit({ content: "", embeds: [embed] });
+      } else {
+        // Playlist added to queue - statusMsg already shows info, delete after 5 sec
+        setTimeout(() => statusMsg.delete().catch(() => {}), 5000);
       }
     } catch (error) {
       console.error(error);
