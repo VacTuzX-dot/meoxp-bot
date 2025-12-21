@@ -15,9 +15,11 @@ const command: Command = {
 
     if (queue?.player) {
       destroyPlayer(client, message.guild!.id);
-      message.reply("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🥺");
+      message.reply(
+        "👋 ลาก่อนนะคะนายท่าน~ หนูไปพักก่อนนะคะ ไว้เรียกหนูมาอีกนะคะ! 💕"
+      );
     } else {
-      message.reply("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~ 😭");
+      message.reply("❓ หนูไม่ได้อยู่ในห้องเสียงนะคะนายท่าน~ 🤔");
     }
   },
 };

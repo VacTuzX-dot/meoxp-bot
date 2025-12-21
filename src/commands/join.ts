@@ -17,27 +17,24 @@ const command: Command = {
   ): Promise<void> {
     const member = message.member;
     if (!member?.voice.channel) {
-      message.reply("❌ คุณต้องเข้าห้องเสียงก่อนนะคะ~ 🎤");
+      message.reply("❌ นายท่านต้องเข้าห้องเสียงก่อนนะคะ~ 🎤");
       return;
     }
 
     const guildId = message.guild!.id;
     const voiceChannelId = member.voice.channel.id;
 
-    // Check if already in this channel
     const botVoiceChannel = message.guild?.members.me?.voice.channel;
     if (botVoiceChannel?.id === voiceChannelId) {
-      message.reply("✅ อยู่ในห้องนี้อยู่แล้วค่ะ~");
+      message.reply("✨ หนูอยู่ในห้องนี้รอนายท่านอยู่แล้วค่ะ~ 💕");
       return;
     }
 
-    // Check Lavalink
     if (!isLavalinkReady(client)) {
-      message.reply("❌ Lavalink ยังไม่พร้อมค่ะ กรุณารอสักครู่~");
+      message.reply("⏳ กรุณารอสักครู่นะคะนายท่าน หนูกำลังเตรียมตัว~ 🔧");
       return;
     }
 
-    // Initialize queue if not exists
     if (!client.queues.has(guildId)) {
       client.queues.set(guildId, createQueue());
     }
@@ -45,34 +42,35 @@ const command: Command = {
     const queue = client.queues.get(guildId)!;
     queue.voiceChannelId = voiceChannelId;
     queue.textChannelId = message.channel.id;
-    queue.persistent = true; // Set persistent mode - no auto-leave
+    queue.persistent = true;
 
-    // Join voice channel
     const player = await getPlayer(client, guildId, voiceChannelId);
     if (!player) {
-      message.reply("❌ ไม่สามารถเข้าห้องได้ค่ะ 🥺");
+      message.reply("😢 ขอโทษนะคะนายท่าน หนูเข้าห้องไม่ได้ค่ะ~");
       return;
     }
 
     queue.player = player;
 
     const embed = new EmbedBuilder()
-      .setTitle("🎙️ เข้าห้องแล้วค่ะ~")
-      .setDescription(`เข้าห้อง **${member.voice.channel.name}** แล้วค่ะ`)
-      .setColor(0x00ff88)
+      .setTitle("🎀 หนูมาแล้วค่ะนายท่าน~")
+      .setDescription(
+        `เข้าห้อง **${member.voice.channel.name}** เรียบร้อยค่ะ ✨`
+      )
+      .setColor(0xff69b4)
       .addFields(
         {
           name: "📌 โหมด",
-          value: "**Persistent** - อยู่จนกว่าจะสั่ง `!!leave`",
+          value: "หนูจะรอนายท่านจนกว่าจะสั่ง `!!leave` ค่ะ",
           inline: false,
         },
         {
-          name: "💡 Tip",
-          value: "ใช้ `!!play` เพื่อเล่นเพลง หรือ `!!leave` เพื่อออก",
+          name: "💡 คำแนะนำ",
+          value: "ใช้ `!!play` เพื่อเปิดเพลง หรือ `!!leave` เพื่อให้หนูออกค่ะ",
           inline: false,
         }
       )
-      .setFooter({ text: "💕 พร้อมให้บริการค่ะ~" });
+      .setFooter({ text: "💕 พร้อมรับใช้นายท่านค่ะ~" });
 
     message.reply({ embeds: [embed] });
   },

@@ -11,7 +11,7 @@ import * as googleTTS from "google-tts-api";
 const command: Command = {
   name: "say",
   aliases: ["tts", "speak"],
-  description: "Text-to-Speech (Thai default, use -e for English)",
+  description: "Text-to-Speech ภาษาไทย",
   async execute(
     message: Message,
     args: string[],
@@ -19,48 +19,32 @@ const command: Command = {
   ): Promise<void> {
     const member = message.member;
     if (!member?.voice.channel) {
-      message.reply("You must be in a voice channel.");
+      message.reply("🎤 นายท่านต้องเข้าห้องเสียงก่อนนะคะ~");
       return;
     }
 
     if (args.length === 0) {
-      message.reply("Usage: `!!say <text>` or `!!saye <text>` for English");
+      message.reply(
+        "💬 กรุณาพิมพ์ข้อความที่ต้องการให้หนูพูดนะคะนายท่าน~ เช่น `!!say สวัสดี`"
+      );
       return;
     }
 
-    // Check for language flag
-    let lang = "th"; // Default Thai
-    let text = args.join(" ");
+    const text = args.join(" ");
 
-    if (args[0] === "-e" || args[0] === "--en") {
-      lang = "en";
-      text = args.slice(1).join(" ");
-    } else if (args[0] === "-t" || args[0] === "--th") {
-      lang = "th";
-      text = args.slice(1).join(" ");
-    }
-
-    if (!text) {
-      message.reply("Please provide text to speak.");
-      return;
-    }
-
-    // Limit text length
     if (text.length > 200) {
-      message.reply("Text too long. Maximum 200 characters.");
+      message.reply("📝 ข้อความยาวเกินไปค่ะนายท่าน สูงสุด 200 ตัวอักษรนะคะ~");
       return;
     }
 
-    // Check Lavalink
     if (!isLavalinkReady(client)) {
-      message.reply("Lavalink is not ready.");
+      message.reply("⏳ กรุณารอสักครู่นะคะนายท่าน หนูกำลังเตรียมตัว~ 🔧");
       return;
     }
 
     const guildId = message.guild!.id;
     const voiceChannelId = member.voice.channel.id;
 
-    // Initialize queue if not exists
     if (!client.queues.has(guildId)) {
       client.queues.set(guildId, createQueue());
     }
@@ -70,31 +54,27 @@ const command: Command = {
     queue.voiceChannelId = voiceChannelId;
 
     try {
-      // Get TTS URL from Google
       const ttsUrl = googleTTS.getAudioUrl(text, {
-        lang: lang,
+        lang: "th",
         slow: false,
         host: "https://translate.google.com",
       });
 
-      // Get or create player
       if (!queue.player) {
         const player = await getPlayer(client, guildId, voiceChannelId);
         if (!player) {
-          message.reply("Failed to join voice channel.");
+          message.reply("😢 หนูเข้าห้องไม่ได้ค่ะนายท่าน~");
           return;
         }
         queue.player = player;
       }
 
-      // Get node for REST API
       const node = getAvailableNode(client);
       if (!node) {
-        message.reply("No Lavalink node available.");
+        message.reply("⚠️ ระบบไม่พร้อมค่ะนายท่าน กรุณาลองใหม่นะคะ~");
         return;
       }
 
-      // Resolve the TTS URL through Lavalink
       const result = await node.rest.resolve(ttsUrl);
 
       if (
@@ -102,7 +82,7 @@ const command: Command = {
         result.loadType === "error" ||
         result.loadType === "empty"
       ) {
-        message.reply("Failed to load TTS audio.");
+        message.reply("❌ ไม่สามารถโหลดเสียงได้ค่ะนายท่าน~");
         return;
       }
 
@@ -110,18 +90,17 @@ const command: Command = {
         result.loadType === "track" ? result.data : (result.data as any)[0];
 
       if (!track) {
-        message.reply("Failed to process TTS audio.");
+        message.reply("❌ เกิดข้อผิดพลาดค่ะนายท่าน~");
         return;
       }
 
-      // Play the TTS
       await queue.player.playTrack({ track: { encoded: track.encoded } });
 
-      const reply = await message.reply(`Speaking: "${text}"`);
+      const reply = await message.reply(`🗣️ "${text}"`);
       setTimeout(() => reply.delete().catch(() => {}), 5000);
     } catch (error) {
       console.error("[TTS] Error:", error);
-      message.reply(`TTS Error: ${(error as Error).message}`);
+      message.reply(`❌ เกิดข้อผิดพลาดค่ะนายท่าน: ${(error as Error).message}`);
     }
   },
 };
