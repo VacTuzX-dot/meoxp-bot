@@ -10,6 +10,7 @@
   "dependencies": {
     "@discord-player/opus": "^7.1.0",
     "@discordjs/voice": "^0.19.0",
+    "@snazzah/davey": "^0.1.9",
     "@stablelib/xchacha20poly1305": "^2.0.0",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
