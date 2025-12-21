@@ -39,7 +39,7 @@ const categories: Record<
     description: "Text-to-Speech commands.",
     fields: [
       { name: "!!say <text>", value: "Speak in Thai", inline: true },
-      { name: "!!say -e <text>", value: "Speak in English", inline: true },
+      { name: "!!saye <text>", value: "Speak in English", inline: true },
     ],
   },
   admin: {

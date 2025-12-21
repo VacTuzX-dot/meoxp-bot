@@ -9,9 +9,9 @@ import {
 import * as googleTTS from "google-tts-api";
 
 const command: Command = {
-  name: "say",
-  aliases: ["tts", "speak"],
-  description: "Text-to-Speech (Thai default, use -e for English)",
+  name: "saye",
+  aliases: ["ttse", "speake"],
+  description: "Text-to-Speech in English",
   async execute(
     message: Message,
     args: string[],
@@ -24,34 +24,17 @@ const command: Command = {
     }
 
     if (args.length === 0) {
-      message.reply("Usage: `!!say <text>` or `!!saye <text>` for English");
+      message.reply("Usage: `!!saye <text>`");
       return;
     }
 
-    // Check for language flag
-    let lang = "th"; // Default Thai
-    let text = args.join(" ");
+    const text = args.join(" ");
 
-    if (args[0] === "-e" || args[0] === "--en") {
-      lang = "en";
-      text = args.slice(1).join(" ");
-    } else if (args[0] === "-t" || args[0] === "--th") {
-      lang = "th";
-      text = args.slice(1).join(" ");
-    }
-
-    if (!text) {
-      message.reply("Please provide text to speak.");
-      return;
-    }
-
-    // Limit text length
     if (text.length > 200) {
       message.reply("Text too long. Maximum 200 characters.");
       return;
     }
 
-    // Check Lavalink
     if (!isLavalinkReady(client)) {
       message.reply("Lavalink is not ready.");
       return;
@@ -60,7 +43,6 @@ const command: Command = {
     const guildId = message.guild!.id;
     const voiceChannelId = member.voice.channel.id;
 
-    // Initialize queue if not exists
     if (!client.queues.has(guildId)) {
       client.queues.set(guildId, createQueue());
     }
@@ -70,14 +52,12 @@ const command: Command = {
     queue.voiceChannelId = voiceChannelId;
 
     try {
-      // Get TTS URL from Google
       const ttsUrl = googleTTS.getAudioUrl(text, {
-        lang: lang,
+        lang: "en",
         slow: false,
         host: "https://translate.google.com",
       });
 
-      // Get or create player
       if (!queue.player) {
         const player = await getPlayer(client, guildId, voiceChannelId);
         if (!player) {
@@ -87,14 +67,12 @@ const command: Command = {
         queue.player = player;
       }
 
-      // Get node for REST API
       const node = getAvailableNode(client);
       if (!node) {
         message.reply("No Lavalink node available.");
         return;
       }
 
-      // Resolve the TTS URL through Lavalink
       const result = await node.rest.resolve(ttsUrl);
 
       if (
@@ -114,11 +92,8 @@ const command: Command = {
         return;
       }
 
-      // Play the TTS
       await queue.player.playTrack({ track: { encoded: track.encoded } });
-
-      const langName = lang === "th" ? "Thai" : "English";
-      message.reply(`Speaking (${langName}): "${text}"`);
+      message.reply(`Speaking (English): "${text}"`);
     } catch (error) {
       console.error("[TTS] Error:", error);
       message.reply(`TTS Error: ${(error as Error).message}`);
