@@ -35,14 +35,31 @@ module.exports = {
       updateBotPresence(client, true);
     }
 
-    // Bot left a voice channel
+    // Bot left a voice channel (was disconnected by someone or left)
     if (
       oldState.member?.id === client.user.id &&
       oldState.channelId &&
       !newState.channelId
     ) {
-      console.log("[VOICE] Bot left voice channel");
+      console.log("[VOICE] Bot left voice channel - clearing queue");
       updateBotPresence(client, false);
+
+      // Clear the queue when bot is disconnected
+      const queue = client.queues?.get(oldState.guild.id);
+      if (queue) {
+        queue.songs = [];
+        queue.nowPlaying = null;
+        if (queue.player) {
+          queue.player.stop();
+        }
+        client.queues.delete(oldState.guild.id);
+      }
+
+      // Clear any leave timeouts
+      if (leaveTimeouts.has(oldState.guild.id)) {
+        clearTimeout(leaveTimeouts.get(oldState.guild.id));
+        leaveTimeouts.delete(oldState.guild.id);
+      }
     }
 
     // Get the bot's voice connection for this guild

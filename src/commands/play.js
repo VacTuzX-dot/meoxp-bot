@@ -177,7 +177,7 @@ function createYtDlpStream(url) {
     url,
   ]);
 
-  // Simpler ffmpeg config - more stable for Discord
+  // Use PCM output - more stable with prism-media encoder
   const ffmpeg = spawn("ffmpeg", [
     "-i",
     "pipe:0",
@@ -186,16 +186,12 @@ function createYtDlpStream(url) {
     "-loglevel",
     "error",
     "-vn",
-    "-acodec",
-    "libopus",
     "-f",
-    "ogg",
+    "s16le", // Raw PCM signed 16-bit little-endian
     "-ar",
-    "48000",
+    "48000", // 48kHz sample rate (Discord standard)
     "-ac",
-    "2",
-    "-b:a",
-    "128k",
+    "2", // Stereo
     "pipe:1",
   ]);
 
@@ -551,9 +547,9 @@ async function processQueue(guildId, client, channel = null) {
     // Create audio stream using yt-dlp
     const stream = createYtDlpStream(song.url);
 
+    // Use Raw type for PCM s16le audio from ffmpeg
     const resource = createAudioResource(stream, {
-      inputType: StreamType.OggOpus,
-      inlineVolume: true,
+      inputType: StreamType.Raw,
     });
 
     queue.player.play(resource);
