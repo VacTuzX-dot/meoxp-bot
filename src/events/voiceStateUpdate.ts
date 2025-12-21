@@ -71,6 +71,13 @@ const event: Event = {
       ).size;
 
       if (membersInChannel === 0) {
+        // Check if queue is in persistent mode (joined via !!join)
+        const queue = client.queues.get(oldState.guild.id);
+        if (queue?.persistent) {
+          console.log("[VOICE] Persistent mode - not leaving");
+          return;
+        }
+
         // No one left in the channel, start 5 second countdown
         console.log("[VOICE] No users in channel, starting 5s countdown...");
 

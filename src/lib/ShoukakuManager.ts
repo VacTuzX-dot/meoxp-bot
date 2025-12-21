@@ -204,6 +204,7 @@ export function createQueue(): Queue {
     loopMode: 0,
     nowPlaying: null,
     nowPlayingMessage: null,
+    persistent: false, // Default: auto-leave enabled
   };
 }
 

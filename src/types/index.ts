@@ -48,6 +48,7 @@ export interface Queue {
   loopMode: number; // 0: off, 1: single, 2: queue
   nowPlaying: Song | null;
   nowPlayingMessage: Message | null;
+  persistent: boolean; // true = joined via !!join, no auto-leave
 }
 
 // Lavalink Node configuration
