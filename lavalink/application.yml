@@ -41,16 +41,13 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    # Optimized buffer for 8GB RAM
     bufferDurationMs: 1500
     frameBufferDurationMs: 8000
-    # Track loading
     youtubePlaylistLoadLimit: 200
     playerUpdateInterval: 3
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
     gc-warnings: true
-    # Connection pool
     trackStuckThresholdMs: 10000
     resamplingQuality: LOW
     opusEncodingQuality: 5
