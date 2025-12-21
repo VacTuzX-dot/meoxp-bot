@@ -63,7 +63,7 @@ export function createShoukaku(
       // Load balancing - use least players
       nodeResolver: (nodes) => {
         const availableNodes = [...nodes.values()].filter(
-          (node) => node.state === 2 // CONNECTED
+          (node) => node.state >= 1 // CONNECTING (1) or CONNECTED (2)
         );
         if (!availableNodes.length) {
           console.warn("[LAVALINK] ⚠️ No available nodes!");
