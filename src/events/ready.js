@@ -5,6 +5,6 @@ module.exports = {
     once: true,
     execute(client) {
         console.log(`✅ Logged in as ${client.user.tag}`);
-        client.user.setActivity('เพลงเพราะๆ 🎵', { type: ActivityType.Listening });
+        client.user.setActivity('เปิดใชเมนูพิมพ์ !!help ค่ะ', { type: ActivityType.Listening });
     }
 };
