@@ -23,11 +23,13 @@ function extractVideoId(url) {
   return null;
 }
 
-// Get video info using yt-dlp
+// Get video info using yt-dlp with audio format details
 async function getVideoInfo(url) {
   return new Promise((resolve, reject) => {
     const ytdlp = spawn("yt-dlp", [
       "-j", // JSON output
+      "-f",
+      "bestaudio[ext=webm]/bestaudio/best",
       "--no-playlist",
       "--no-warnings",
       url,
@@ -51,11 +53,29 @@ async function getVideoInfo(url) {
       }
       try {
         const info = JSON.parse(stdout);
+
+        // Extract audio format details
+        const audioFormat =
+          info.formats?.find(
+            (f) =>
+              f.format_id === info.format_id ||
+              (f.acodec && f.acodec !== "none")
+          ) || info;
+
         resolve({
           title: info.title,
           url: info.webpage_url || url,
           duration: info.duration,
           thumbnail: info.thumbnail,
+          uploader: info.uploader || info.channel || "Unknown",
+          viewCount: info.view_count,
+          // Audio quality details
+          audioCodec: info.acodec || audioFormat.acodec || "Unknown",
+          audioBitrate: info.abr || audioFormat.abr || info.tbr || "Unknown",
+          audioSampleRate: info.asr || audioFormat.asr || 48000,
+          audioChannels: info.audio_channels || audioFormat.audio_channels || 2,
+          audioExt: info.audio_ext || audioFormat.ext || info.ext || "Unknown",
+          formatNote: info.format_note || audioFormat.format_note || "",
         });
       } catch (e) {
         reject(new Error("Failed to parse video info"));
@@ -121,6 +141,58 @@ function formatDuration(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+// Helper to format audio quality string
+function formatAudioQuality(song) {
+  const codec = song.audioCodec || "Unknown";
+  const bitrate = song.audioBitrate
+    ? `${Math.round(song.audioBitrate)}kbps`
+    : "N/A";
+  const sampleRate = song.audioSampleRate
+    ? `${song.audioSampleRate / 1000}kHz`
+    : "48kHz";
+  const channels =
+    song.audioChannels === 2
+      ? "Stereo"
+      : song.audioChannels === 1
+      ? "Mono"
+      : `${song.audioChannels}ch`;
+  const ext = song.audioExt || "webm";
+
+  return `\`${codec.toUpperCase()}\` • ${bitrate} • ${sampleRate} • ${channels} • ${ext}`;
+}
+
+// Create Now Playing embed
+function createNowPlayingEmbed(song, queue) {
+  const audioQuality = formatAudioQuality(song);
+  const loopModes = ["➡️ ปิด", "🔂 เพลงเดียว", "🔁 ทั้ง Queue"];
+
+  const embed = new EmbedBuilder()
+    .setTitle("🎵 กำลังเล่นเพลงค่ะ~")
+    .setDescription(`**${song.title}**`)
+    .setColor(0x00ff88)
+    .addFields(
+      {
+        name: "⏱️ ความยาว",
+        value: song.durationInfo || "Unknown",
+        inline: true,
+      },
+      { name: "🎤 ศิลปิน", value: song.uploader || "Unknown", inline: true },
+      { name: "👤 ขอโดย", value: song.requester || "Unknown", inline: true },
+      { name: "🔊 คุณภาพเสียง", value: audioQuality, inline: false },
+      { name: "🔄 Loop", value: loopModes[queue?.loopMode || 0], inline: true },
+      {
+        name: "📋 Queue",
+        value: `${queue?.songs?.length || 0} เพลง`,
+        inline: true,
+      }
+    )
+    .setFooter({ text: "💕 เพลงเพราะมากเลยค่ะ~" });
+
+  if (song.thumbnail) embed.setThumbnail(song.thumbnail);
+
+  return embed;
 }
 
 module.exports = {
@@ -193,9 +265,17 @@ module.exports = {
       const song = {
         title: videoInfo.title,
         url: videoUrl,
+        duration: videoInfo.duration,
         durationInfo: formatDuration(videoInfo.duration),
         thumbnail: videoInfo.thumbnail,
         requester: message.author.username,
+        uploader: videoInfo.uploader,
+        // Audio quality
+        audioCodec: videoInfo.audioCodec,
+        audioBitrate: videoInfo.audioBitrate,
+        audioSampleRate: videoInfo.audioSampleRate,
+        audioChannels: videoInfo.audioChannels,
+        audioExt: videoInfo.audioExt,
       };
 
       // Add to queue
@@ -227,19 +307,31 @@ module.exports = {
       }
 
       if (!queue.nowPlaying) {
-        processQueue(message.guild.id, client);
+        processQueue(message.guild.id, client, message.channel);
         await statusMsg.delete().catch(() => {});
       } else {
+        // Format audio quality string
+        const audioQuality = formatAudioQuality(song);
+
         const embed = new EmbedBuilder()
           .setTitle("📥 เพิ่มเข้า Queue แล้วค่ะ~")
           .setDescription(`**${song.title}**`)
           .setColor(0xff69b4)
-          .addFields({
-            name: "⏱️ ความยาว",
-            value: song.durationInfo || "Unknown",
-          })
+          .addFields(
+            {
+              name: "⏱️ ความยาว",
+              value: song.durationInfo || "Unknown",
+              inline: true,
+            },
+            {
+              name: "🎤 ศิลปิน",
+              value: song.uploader || "Unknown",
+              inline: true,
+            },
+            { name: "🔊 คุณภาพเสียง", value: audioQuality, inline: false }
+          )
           .setFooter({
-            text: `ตำแหน่ง #${queue.songs.length} | ขอโดย: ${song.requester}`,
+            text: `📋 ตำแหน่งใน Queue: #${queue.songs.length} | ขอโดย: ${song.requester}`,
           });
 
         if (song.thumbnail) embed.setThumbnail(song.thumbnail);
@@ -252,9 +344,12 @@ module.exports = {
   },
 };
 
-async function processQueue(guildId, client) {
+async function processQueue(guildId, client, channel = null) {
   const queue = client.queues.get(guildId);
   if (!queue) return;
+
+  // Store channel reference if provided
+  if (channel) queue.textChannel = channel;
 
   // Handle Loop Logic
   if (queue.nowPlaying) {
@@ -291,6 +386,12 @@ async function processQueue(guildId, client) {
     });
 
     queue.player.play(resource);
+
+    // Send Now Playing message
+    if (queue.textChannel) {
+      const embed = createNowPlayingEmbed(song, queue);
+      queue.textChannel.send({ embeds: [embed] }).catch(() => {});
+    }
   } catch (error) {
     console.error("Play error:", error.message);
     setTimeout(() => processQueue(guildId, client), 1000);

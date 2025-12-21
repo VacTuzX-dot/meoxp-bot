@@ -11,17 +11,14 @@ module.exports = {
     }
 
     const amount = parseInt(args[0]);
-    // Max is 99 because we add +1 for the command itself (Discord API limit is 100)
-    if (isNaN(amount) || amount < 1 || amount > 99) {
-      return message.reply("❌ กรุณาระบุจำนวน 1-99 นะคะ~");
+    if (isNaN(amount) || amount < 1 || amount > 100) {
+      return message.reply("❌ กรุณาระบุจำนวน 1-100 นะคะ~");
     }
 
     try {
-      // +1 to delete the command message itself
-      // true = filter out messages older than 14 days (Discord API limitation)
       const deleted = await message.channel.bulkDelete(amount + 1, true);
 
-      const actualDeleted = deleted.size - 1; // -1 because we don't count the command
+      const actualDeleted = deleted.size - 1;
       let replyText = `🗑️ ลบไป **${actualDeleted}** ข้อความแล้วค่ะ~ ✨`;
 
       // If we deleted less than requested, some messages were probably too old
