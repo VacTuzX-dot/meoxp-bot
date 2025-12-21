@@ -60,24 +60,32 @@ export function createShoukaku(
     new Connectors.DiscordJS(client),
     lavalinkNodes,
     {
-      // Load balancing - use least players
-      nodeResolver: (nodes) => {
+      // Node resolver - select available node with least players
+      nodeResolver: (nodes, connection) => {
+        // Filter nodes that are at least CONNECTING
         const availableNodes = [...nodes.values()].filter(
-          (node) => node.state >= 1 // CONNECTING (1) or CONNECTED (2)
+          (node) => node.state >= 1
         );
+
         if (!availableNodes.length) {
           console.warn("[LAVALINK] ⚠️ No available nodes!");
           return undefined;
         }
+
+        // Sort by least players for load balancing
         return availableNodes.sort(
           (a, b) => (a.stats?.players ?? 0) - (b.stats?.players ?? 0)
         )[0];
       },
-      moveOnDisconnect: true,
-      resume: true,
-      resumeTimeout: 60,
-      reconnectTries: 10, // More retries
-      reconnectInterval: 3000,
+      // Connection settings (per Shoukaku docs)
+      moveOnDisconnect: true, // Move players to different node on disconnect
+      resume: true, // Server-side resume
+      resumeByLibrary: true, // Client-side resume (more reliable)
+      resumeTimeout: 60, // Wait 60s before destroying players
+      reconnectTries: 5, // Reconnect attempts
+      reconnectInterval: 5000, // 5s between reconnects
+      restTimeout: 60000, // 60s REST API timeout
+      voiceConnectionTimeout: 15000, // 15s voice connection timeout
     }
   );
 
