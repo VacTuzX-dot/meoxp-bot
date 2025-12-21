@@ -12,6 +12,7 @@ const {
   StreamType,
 } = require("@discordjs/voice");
 const { spawn } = require("child_process");
+const { PassThrough } = require("stream");
 const YouTube = require("youtube-sr").default;
 
 // Max playlist size
@@ -162,64 +163,103 @@ async function getVideoInfo(url) {
   });
 }
 
-// Create audio stream using yt-dlp piped through ffmpeg with buffering
+// Create audio stream using yt-dlp piped through ffmpeg with proper buffering
 function createYtDlpStream(url) {
+  // Create buffer stream - 8MB is enough for smooth playback
+  const bufferStream = new PassThrough({
+    highWaterMark: 1024 * 1024 * 8, // 8MB buffer (good for 8GB RAM)
+  });
+
   // Audio format priority: Opus (best) -> AAC -> any audio
-  const ytdlp = spawn("yt-dlp", [
-    "-f",
-    "bestaudio[acodec=opus]/bestaudio[acodec=aac]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
-    "-o",
-    "-",
-    "--no-playlist",
-    "--no-warnings",
-    "--quiet",
-    "--no-part",
-    url,
-  ]);
+  const ytdlp = spawn(
+    "yt-dlp",
+    [
+      "-f",
+      "bestaudio[acodec=opus]/bestaudio[acodec=aac]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
+      "-o",
+      "-",
+      "--no-playlist",
+      "--no-warnings",
+      "--quiet",
+      "--no-part",
+      "--no-cache-dir",
+      url,
+    ],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
 
-  // Use PCM output - more stable with prism-media encoder
-  const ffmpeg = spawn("ffmpeg", [
-    "-i",
-    "pipe:0",
-    "-analyzeduration",
-    "0",
-    "-loglevel",
-    "error",
-    "-vn",
-    "-f",
-    "s16le", // Raw PCM signed 16-bit little-endian
-    "-ar",
-    "48000", // 48kHz sample rate (Discord standard)
-    "-ac",
-    "2", // Stereo
-    "pipe:1",
-  ]);
+  // Use ffmpeg to output Opus in OGG container (native Discord format)
+  const ffmpeg = spawn(
+    "ffmpeg",
+    [
+      "-i",
+      "pipe:0",
+      "-analyzeduration",
+      "0",
+      "-loglevel",
+      "error",
+      "-vn",
+      "-c:a",
+      "libopus",
+      "-b:a",
+      "128k",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      "-f",
+      "opus",
+      "pipe:1",
+    ],
+    {
+      stdio: ["pipe", "pipe", "pipe"],
+    }
+  );
 
-  // Pipe yt-dlp to ffmpeg
+  // Pipe chain: yt-dlp -> ffmpeg -> buffer
   ytdlp.stdout.pipe(ffmpeg.stdin);
+  ffmpeg.stdout.pipe(bufferStream);
 
-  // Error handling - skip to next on error
+  // Error handling
   ytdlp.stderr.on("data", (data) => {
     const msg = data.toString();
     if (msg.includes("ERROR")) {
-      console.error("[yt-dlp]", msg);
+      console.error("[yt-dlp]", msg.trim());
     }
   });
 
   ffmpeg.stderr.on("data", (data) => {
-    console.error("[ffmpeg]", data.toString());
+    const msg = data.toString().trim();
+    if (msg) console.error("[ffmpeg]", msg);
   });
 
-  ytdlp.on("error", (err) => console.error("[yt-dlp error]", err.message));
-  ffmpeg.on("error", (err) => console.error("[ffmpeg error]", err.message));
-
-  // Cleanup
-  ffmpeg.stdout.on("close", () => {
-    ytdlp.kill("SIGTERM");
-    ffmpeg.kill("SIGTERM");
+  // Process error handlers
+  ytdlp.on("error", (err) => {
+    console.error("[yt-dlp error]", err.message);
+    bufferStream.destroy();
   });
 
-  return ffmpeg.stdout;
+  ffmpeg.on("error", (err) => {
+    console.error("[ffmpeg error]", err.message);
+    bufferStream.destroy();
+  });
+
+  // Cleanup on close
+  bufferStream.on("close", () => {
+    if (!ytdlp.killed) ytdlp.kill("SIGTERM");
+    if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
+  });
+
+  // Handle process exit
+  ytdlp.on("close", (code) => {
+    if (code !== 0 && code !== null) {
+      console.error("[yt-dlp] exited with code", code);
+    }
+  });
+
+  return bufferStream;
 }
 
 // Helper to format duration
@@ -544,12 +584,12 @@ async function processQueue(guildId, client, channel = null) {
       song.audioExt = "ogg";
     }
 
-    // Create audio stream using yt-dlp
+    // Create audio stream using yt-dlp with buffering
     const stream = createYtDlpStream(song.url);
 
-    // Use Raw type for PCM s16le audio from ffmpeg
+    // Use Arbitrary type - discord.js will probe and detect Opus format
     const resource = createAudioResource(stream, {
-      inputType: StreamType.Raw,
+      inputType: StreamType.Arbitrary,
     });
 
     queue.player.play(resource);
