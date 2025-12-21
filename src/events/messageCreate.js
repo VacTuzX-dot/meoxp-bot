@@ -1,5 +1,7 @@
+const { Events } = require('discord.js');
+
 module.exports = {
-    name: 'messageCreate',
+    name: Events.MessageCreate,
     execute(message, client) {
         if (message.author.bot) return;
         
