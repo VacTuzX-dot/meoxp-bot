@@ -1,12 +1,31 @@
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { ExtendedClient } from "./types";
 
 export function startApiServer(client: ExtendedClient, port: number = 4000) {
   const app = express();
+  const server = createServer(app);
+  const io = new Server(server, {
+    cors: {
+      origin: "*", // Allow all origins for now, or specify dashboard URL
+      methods: ["GET", "POST"],
+    },
+  });
+
+  client.io = io;
 
   app.use(cors());
   app.use(express.json());
+
+  io.on("connection", (socket) => {
+    console.log("[SOCKET] Client connected:", socket.id);
+
+    socket.on("disconnect", () => {
+      console.log("[SOCKET] Client disconnected:", socket.id);
+    });
+  });
 
   // Health check
   app.get("/api/health", (req, res) => {
@@ -68,33 +87,8 @@ export function startApiServer(client: ExtendedClient, port: number = 4000) {
 
   // Queue info for a guild
   app.get("/api/queue/:guildId", (req, res) => {
-    const queue = client.queues.get(req.params.guildId);
-
-    if (!queue) {
-      res.json({ exists: false, nowPlaying: null, songs: [] });
-      return;
-    }
-
-    res.json({
-      exists: true,
-      nowPlaying: queue.nowPlaying
-        ? {
-            title: queue.nowPlaying.title,
-            url: queue.nowPlaying.url,
-            duration: queue.nowPlaying.durationInfo,
-            thumbnail: queue.nowPlaying.thumbnail,
-            requester: queue.nowPlaying.requester,
-          }
-        : null,
-      songs: queue.songs.slice(0, 10).map((s) => ({
-        title: s.title,
-        duration: s.durationInfo,
-        requester: s.requester,
-      })),
-      totalSongs: queue.songs.length,
-      loopMode: queue.loopMode,
-      persistent: queue.persistent,
-    });
+    const payload = getQueuePayload(client, req.params.guildId);
+    res.json(payload);
   });
 
   // All queues summary
@@ -113,9 +107,48 @@ export function startApiServer(client: ExtendedClient, port: number = 4000) {
     res.json({ queues });
   });
 
-  app.listen(port, () => {
+  server.listen(port, () => {
     console.log(`[API] ✅ Server running on port ${port}`);
   });
 
   return app;
+}
+
+export function getQueuePayload(client: ExtendedClient, guildId: string) {
+  const queue = client.queues.get(guildId);
+
+  if (!queue) {
+    return { exists: false, nowPlaying: null, songs: [] };
+  }
+
+  const guild = client.guilds.cache.get(guildId);
+
+  return {
+    exists: true,
+    guildName: guild?.name || "Unknown",
+    nowPlaying: queue.nowPlaying
+      ? {
+          title: queue.nowPlaying.title,
+          url: queue.nowPlaying.url,
+          duration: queue.nowPlaying.durationInfo,
+          thumbnail: queue.nowPlaying.thumbnail,
+          requester: queue.nowPlaying.requester,
+        }
+      : null,
+    songs: queue.songs.slice(0, 10).map((s) => ({
+      title: s.title,
+      duration: s.durationInfo,
+      requester: s.requester,
+    })),
+    totalSongs: queue.songs.length,
+    loopMode: queue.loopMode,
+    persistent: queue.persistent,
+  };
+}
+
+export function broadcastGuildUpdate(client: ExtendedClient, guildId: string) {
+  if (client.io) {
+    const payload = getQueuePayload(client, guildId);
+    client.io.emit("guildUpdate", { guildId, ...payload });
+  }
 }

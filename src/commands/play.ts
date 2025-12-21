@@ -14,6 +14,7 @@ import {
   isLavalinkReady,
   getAvailableNode,
 } from "../lib/ShoukakuManager";
+import { broadcastGuildUpdate } from "../api";
 
 // Format audio quality string
 function formatAudioQuality(song: Song): string {
@@ -90,6 +91,7 @@ async function processQueue(
   // Check if empty
   if (queue.songs.length === 0) {
     queue.nowPlaying = null;
+    broadcastGuildUpdate(client, guildId);
     return;
   }
 
@@ -97,6 +99,7 @@ async function processQueue(
   queue.nowPlaying = song;
 
   console.log("[PLAY] Now playing:", song.title);
+  broadcastGuildUpdate(client, guildId);
 
   try {
     // Get the node
@@ -259,6 +262,7 @@ const command: Command = {
 
       // Add to queue
       queue.songs.push(...songsToAdd);
+      broadcastGuildUpdate(client, guildId);
 
       // Connect to voice if needed
       if (!queue.player) {
@@ -274,6 +278,9 @@ const command: Command = {
         // Player events
         player.on("end", () => {
           processQueue(guildId, client);
+          // Broadcast update after processing next track (waits for async processQueue? no, processQueue is async but we don't await it here)
+          // Actually processQueue calls broadcast, so we are good for next track.
+          // But if queue ends, processQueue returns early. We should handle that.
         });
 
         player.on("exception", (error) => {

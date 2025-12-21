@@ -6,6 +6,7 @@ export interface ExtendedClient extends Client {
   shoukaku: Shoukaku;
   commands: Collection<string, Command>;
   queues: Map<string, Queue>;
+  io?: any;
 }
 
 // Command interface
