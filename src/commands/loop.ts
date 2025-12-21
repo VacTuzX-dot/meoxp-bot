@@ -19,27 +19,26 @@ const command: Command = {
     const queue = client.queues.get(message.guild!.id);
 
     if (!queue) {
-      message.reply("❌ ไม่มีการเล่นเพลงอยู่ค่ะ~");
+      message.reply("❌ ไม่มีการเล่นเพลงอยู่นะคะนายท่าน~");
       return;
     }
 
-    // Cycle modes: 0 -> 1 -> 2 -> 0
     queue.loopMode = (queue.loopMode + 1) % 3;
     const mode = loopModes[queue.loopMode];
 
-    // Send loop change message then delete after 3 seconds
-    const loopMsg = await message.reply(`${mode.emoji} ${mode.text}แล้วค่ะ~`);
+    const loopMsg = await message.reply(
+      `${mode.emoji} ${mode.text}แล้วค่ะนายท่าน~ ✨`
+    );
     setTimeout(() => {
       loopMsg.delete().catch(() => {});
       message.delete().catch(() => {});
     }, 3000);
 
-    // Update Now Playing message if exists
     if (queue.nowPlaying && queue.nowPlayingMessage) {
       const song = queue.nowPlaying;
 
       const embed = new EmbedBuilder()
-        .setTitle("🎵 กำลังเล่นเพลงค่ะ~")
+        .setTitle("🎵 กำลังเล่นเพลงค่ะนายท่าน~")
         .setDescription(`**${song.title}**`)
         .setColor(mode.color)
         .addFields(
@@ -58,11 +57,7 @@ const command: Command = {
             value: song.requester || "Unknown",
             inline: true,
           },
-          {
-            name: "🔊 คุณภาพเสียง",
-            value: "`OPUS` • 128kbps • 48kHz • Stereo",
-            inline: false,
-          },
+          { name: "🔊 คุณภาพ", value: "`OPUS` • 128kbps", inline: false },
           {
             name: "🔄 Loop",
             value: `${mode.emoji} ${mode.text}`,
@@ -74,15 +69,13 @@ const command: Command = {
             inline: true,
           }
         )
-        .setFooter({ text: "💕 เพลงเพราะมากเลยค่ะ~" });
+        .setFooter({ text: "💕 เพลงเพราะมากเลยค่ะนายท่าน~" });
 
       if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
       try {
         await queue.nowPlayingMessage.edit({ embeds: [embed] });
-      } catch (e) {
-        // Ignore edit errors
-      }
+      } catch (e) {}
     }
   },
 };

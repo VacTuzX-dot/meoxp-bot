@@ -13,14 +13,14 @@ const command: Command = {
     const queue = client.queues.get(message.guild!.id);
 
     if (!queue) {
-      message.reply("❌ ไม่มี Queue ค่ะ~");
+      message.reply("❌ ไม่มี Queue นะคะนายท่าน~");
       return;
     }
 
     const count = queue.songs.length;
     queue.songs = [];
 
-    message.reply(`🗑️ ลบเพลงใน Queue แล้ว **${count}** เพลงค่ะ~ ✨`);
+    message.reply(`🗑️ ล้าง Queue แล้วค่ะนายท่าน~ (${count} เพลง) ✨`);
   },
 };
 

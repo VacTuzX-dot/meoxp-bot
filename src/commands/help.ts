@@ -13,41 +13,42 @@ const categories: Record<
   { title: string; description: string; fields?: any[] }
 > = {
   home: {
-    title: "Help Menu",
-    description: "Select a category from the menu below.",
+    title: "🎀 เมนูช่วยเหลือค่ะนายท่าน",
+    description:
+      "ยินดีต้อนรับค่ะ~ เลือกหมวดหมู่จากเมนูด้านล่างเพื่อดูคำสั่งนะคะ 💕",
   },
   music: {
-    title: "Music Commands",
-    description: "Commands for playing music.",
+    title: "🎵 คำสั่งเพลง",
+    description: "คำสั่งสำหรับเล่นเพลงค่ะนายท่าน~",
     fields: [
-      { name: "!!play <query>", value: "Play music", inline: true },
-      { name: "!!skip", value: "Skip track", inline: true },
-      { name: "!!stop", value: "Pause", inline: true },
-      { name: "!!resume", value: "Resume", inline: true },
-      { name: "!!queue", value: "View queue", inline: true },
-      { name: "!!np", value: "Now playing", inline: true },
-      { name: "!!loop", value: "Toggle loop", inline: true },
-      { name: "!!shuffle", value: "Shuffle queue", inline: true },
-      { name: "!!clear", value: "Clear queue", inline: true },
-      { name: "!!join", value: "Join (persistent)", inline: true },
-      { name: "!!leave", value: "Leave channel", inline: true },
-      { name: "!!panel", value: "Control panel", inline: true },
+      { name: "!!play <ชื่อ/URL>", value: "เปิดเพลง 🎶", inline: true },
+      { name: "!!skip", value: "ข้ามเพลง ⏭️", inline: true },
+      { name: "!!stop", value: "หยุดชั่วคราว ⏸️", inline: true },
+      { name: "!!resume", value: "เล่นต่อ ▶️", inline: true },
+      { name: "!!queue", value: "ดู Queue 📋", inline: true },
+      { name: "!!np", value: "เพลงที่เล่นอยู่ 🎵", inline: true },
+      { name: "!!loop", value: "เปิด/ปิด Loop 🔁", inline: true },
+      { name: "!!shuffle", value: "สับ Queue 🔀", inline: true },
+      { name: "!!clear", value: "ล้าง Queue 🗑️", inline: true },
+      { name: "!!join", value: "เข้าห้อง (รออยู่) 🎙️", inline: true },
+      { name: "!!leave", value: "ออกจากห้อง 👋", inline: true },
+      { name: "!!panel", value: "แผงควบคุม 🎛️", inline: true },
     ],
   },
   tts: {
-    title: "TTS Commands",
-    description: "Text-to-Speech commands.",
+    title: "🗣️ คำสั่ง TTS",
+    description: "คำสั่งให้หนูพูดค่ะนายท่าน~",
     fields: [
-      { name: "!!say <text>", value: "Speak in Thai", inline: true },
-      { name: "!!saye <text>", value: "Speak in English", inline: true },
+      { name: "!!say <ข้อความ>", value: "พูดภาษาไทย 🇹🇭", inline: true },
+      { name: "!!saye <text>", value: "พูดภาษาอังกฤษ 🇬🇧", inline: true },
     ],
   },
   admin: {
-    title: "Admin Commands",
-    description: "Admin only commands.",
+    title: "⚙️ คำสั่ง Admin",
+    description: "คำสั่งสำหรับ Admin ค่ะนายท่าน~ (เฉพาะผู้ดูแล)",
     fields: [
-      { name: "!!purge <n>", value: "Delete messages", inline: true },
-      { name: "!!status", value: "Bot status", inline: true },
+      { name: "!!purge <จำนวน>", value: "ลบข้อความ 🗑️", inline: true },
+      { name: "!!status", value: "สถานะบอท 📊", inline: true },
     ],
   },
 };
@@ -64,12 +65,12 @@ const command: Command = {
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId("help_menu")
-        .setPlaceholder("Select category...")
+        .setPlaceholder("🔍 เลือกหมวดหมู่...")
         .addOptions([
-          { label: "Home", value: "home" },
-          { label: "Music", value: "music" },
-          { label: "TTS", value: "tts" },
-          { label: "Admin", value: "admin" },
+          { label: "🏠 หน้าแรก", value: "home" },
+          { label: "🎵 เพลง", value: "music" },
+          { label: "🗣️ TTS", value: "tts" },
+          { label: "⚙️ Admin", value: "admin" },
         ])
     );
 
@@ -79,7 +80,7 @@ const command: Command = {
         .setTitle(data.title)
         .setDescription(data.description)
         .setColor(0xff69b4)
-        .setFooter({ text: "Prefix: !! | เลือกหมวดหมู่จากเมนูด้านล่าง 🩷" });
+        .setFooter({ text: "💕 พร้อมรับใช้นายท่านค่ะ~ | Prefix: !!" });
 
       if (data.fields) {
         embed.addFields(data.fields);
@@ -103,7 +104,7 @@ const command: Command = {
       async (interaction: StringSelectMenuInteraction) => {
         if (interaction.user.id !== message.author.id) {
           await interaction.reply({
-            content: "❌ นี่ไม่ใช่เมนูของคุณค่ะ~",
+            content: "❌ นี่ไม่ใช่เมนูของนายท่านนะคะ~",
             ephemeral: true,
           });
           return;

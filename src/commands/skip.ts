@@ -13,13 +13,13 @@ const command: Command = {
     const queue = client.queues.get(message.guild!.id);
 
     if (!queue || !queue.player) {
-      message.reply("❌ ไม่มีเพลงที่กำลังเล่นอยู่ค่ะ~");
+      message.reply("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะนายท่าน~");
       return;
     }
 
     const skippedTitle = queue.nowPlaying?.title || "เพลง";
     queue.player.stopTrack();
-    message.reply(`⏭️ ข้าม **${skippedTitle}** แล้วค่ะ~`);
+    message.reply(`⏭️ ข้ามเพลง **${skippedTitle}** แล้วค่ะนายท่าน~ 🎵`);
   },
 };
 

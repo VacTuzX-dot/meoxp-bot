@@ -11,7 +11,7 @@ import * as googleTTS from "google-tts-api";
 const command: Command = {
   name: "saye",
   aliases: ["ttse", "speake"],
-  description: "Text-to-Speech in English",
+  description: "Text-to-Speech ภาษาอังกฤษ",
   async execute(
     message: Message,
     args: string[],
@@ -19,24 +19,26 @@ const command: Command = {
   ): Promise<void> {
     const member = message.member;
     if (!member?.voice.channel) {
-      message.reply("You must be in a voice channel.");
+      message.reply("🎤 นายท่านต้องเข้าห้องเสียงก่อนนะคะ~");
       return;
     }
 
     if (args.length === 0) {
-      message.reply("Usage: `!!saye <text>`");
+      message.reply(
+        "💬 กรุณาพิมพ์ข้อความที่ต้องการให้หนูพูดนะคะนายท่าน~ เช่น `!!saye Hello`"
+      );
       return;
     }
 
     const text = args.join(" ");
 
     if (text.length > 200) {
-      message.reply("Text too long. Maximum 200 characters.");
+      message.reply("📝 ข้อความยาวเกินไปค่ะนายท่าน สูงสุด 200 ตัวอักษรนะคะ~");
       return;
     }
 
     if (!isLavalinkReady(client)) {
-      message.reply("Lavalink is not ready.");
+      message.reply("⏳ กรุณารอสักครู่นะคะนายท่าน หนูกำลังเตรียมตัว~ 🔧");
       return;
     }
 
@@ -61,7 +63,7 @@ const command: Command = {
       if (!queue.player) {
         const player = await getPlayer(client, guildId, voiceChannelId);
         if (!player) {
-          message.reply("Failed to join voice channel.");
+          message.reply("😢 หนูเข้าห้องไม่ได้ค่ะนายท่าน~");
           return;
         }
         queue.player = player;
@@ -69,7 +71,7 @@ const command: Command = {
 
       const node = getAvailableNode(client);
       if (!node) {
-        message.reply("No Lavalink node available.");
+        message.reply("⚠️ ระบบไม่พร้อมค่ะนายท่าน กรุณาลองใหม่นะคะ~");
         return;
       }
 
@@ -80,7 +82,7 @@ const command: Command = {
         result.loadType === "error" ||
         result.loadType === "empty"
       ) {
-        message.reply("Failed to load TTS audio.");
+        message.reply("❌ ไม่สามารถโหลดเสียงได้ค่ะนายท่าน~");
         return;
       }
 
@@ -88,16 +90,17 @@ const command: Command = {
         result.loadType === "track" ? result.data : (result.data as any)[0];
 
       if (!track) {
-        message.reply("Failed to process TTS audio.");
+        message.reply("❌ เกิดข้อผิดพลาดค่ะนายท่าน~");
         return;
       }
 
       await queue.player.playTrack({ track: { encoded: track.encoded } });
-      const reply = await message.reply(`Speaking: "${text}"`);
+
+      const reply = await message.reply(`🗣️ "${text}"`);
       setTimeout(() => reply.delete().catch(() => {}), 5000);
     } catch (error) {
       console.error("[TTS] Error:", error);
-      message.reply(`TTS Error: ${(error as Error).message}`);
+      message.reply(`❌ เกิดข้อผิดพลาดค่ะนายท่าน: ${(error as Error).message}`);
     }
   },
 };
