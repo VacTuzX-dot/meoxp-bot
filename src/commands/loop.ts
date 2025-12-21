@@ -1,50 +1,42 @@
-const { EmbedBuilder } = require("discord.js");
+import { Message, EmbedBuilder } from "discord.js";
+import { ExtendedClient, Command } from "../types";
 
-module.exports = {
+const loopModes = [
+  { emoji: "➡️", text: "ปิด Loop", color: 0x808080 },
+  { emoji: "🔂", text: "Loop เพลงเดียว", color: 0x00ff88 },
+  { emoji: "🔁", text: "Loop ทั้ง Queue", color: 0xff69b4 },
+];
+
+const command: Command = {
   name: "loop",
+  aliases: ["l"],
   description: "Toggle loop mode",
-  async execute(message, args, client) {
-    const queue = client.queues?.get(message.guild.id);
-    if (!queue) return message.reply("❌ ไม่มีการเล่นเพลงอยู่ค่ะ~");
+  async execute(
+    message: Message,
+    args: string[],
+    client: ExtendedClient
+  ): Promise<void> {
+    const queue = client.queues.get(message.guild!.id);
+
+    if (!queue) {
+      message.reply("❌ ไม่มีการเล่นเพลงอยู่ค่ะ~");
+      return;
+    }
 
     // Cycle modes: 0 -> 1 -> 2 -> 0
     queue.loopMode = (queue.loopMode + 1) % 3;
-
-    const loopModes = [
-      { emoji: "➡️", text: "ปิด Loop", color: 0x808080 },
-      { emoji: "🔂", text: "Loop เพลงเดียว", color: 0x00ff88 },
-      { emoji: "🔁", text: "Loop ทั้ง Queue", color: 0xff69b4 },
-    ];
-
     const mode = loopModes[queue.loopMode];
 
     // Send loop change message then delete after 3 seconds
     const loopMsg = await message.reply(`${mode.emoji} ${mode.text}แล้วค่ะ~`);
     setTimeout(() => {
       loopMsg.delete().catch(() => {});
-      message.delete().catch(() => {}); // Also delete the command message
+      message.delete().catch(() => {});
     }, 3000);
 
     // Update Now Playing message if exists
     if (queue.nowPlaying && queue.nowPlayingMessage) {
       const song = queue.nowPlaying;
-
-      // Format audio quality string
-      const codec = song.audioCodec || "Unknown";
-      const bitrate = song.audioBitrate
-        ? `${Math.round(song.audioBitrate)}kbps`
-        : "N/A";
-      const sampleRate = song.audioSampleRate
-        ? `${song.audioSampleRate / 1000}kHz`
-        : "48kHz";
-      const channels =
-        song.audioChannels === 2
-          ? "Stereo"
-          : song.audioChannels === 1
-          ? "Mono"
-          : `${song.audioChannels}ch`;
-      const ext = song.audioExt || "webm";
-      const audioQuality = `\`${codec.toUpperCase()}\` • ${bitrate} • ${sampleRate} • ${channels} • ${ext}`;
 
       const embed = new EmbedBuilder()
         .setTitle("🎵 กำลังเล่นเพลงค่ะ~")
@@ -66,7 +58,11 @@ module.exports = {
             value: song.requester || "Unknown",
             inline: true,
           },
-          { name: "🔊 คุณภาพเสียง", value: audioQuality, inline: false },
+          {
+            name: "🔊 คุณภาพเสียง",
+            value: "`OPUS` • 128kbps • 48kHz • Stereo",
+            inline: false,
+          },
           {
             name: "🔄 Loop",
             value: `${mode.emoji} ${mode.text}`,
@@ -82,18 +78,13 @@ module.exports = {
 
       if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
-      // Edit the existing Now Playing message instead of sending a new one
       try {
         await queue.nowPlayingMessage.edit({ embeds: [embed] });
       } catch (e) {
-        // If edit fails, send a new message
-        if (queue.textChannel) {
-          const npMsg = await queue.textChannel
-            .send({ embeds: [embed] })
-            .catch(() => null);
-          queue.nowPlayingMessage = npMsg;
-        }
+        // Ignore edit errors
       }
     }
   },
 };
+
+export default command;

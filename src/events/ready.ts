@@ -1,12 +1,14 @@
-const { ActivityType, Events, PresenceUpdateStatus } = require("discord.js");
+import { Events, ActivityType, PresenceUpdateStatus, Client } from "discord.js";
+import { ExtendedClient, Event } from "../types";
 
-module.exports = {
+const event: Event = {
   name: Events.ClientReady,
   once: true,
-  execute(client) {
-    console.log(`✅ Logged in as ${client.user.tag}`);
+  execute(client: ExtendedClient) {
+    console.log(`✅ Logged in as ${client.user?.tag}`);
+
     // Set initial status to idle (not in any voice channel)
-    client.user.setPresence({
+    client.user?.setPresence({
       status: PresenceUpdateStatus.Idle,
       activities: [
         {
@@ -17,3 +19,5 @@ module.exports = {
     });
   },
 };
+
+export default event;

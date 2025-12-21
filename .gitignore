@@ -4,6 +4,12 @@
 .env.*.local
 node_modules
 
+# TypeScript build output
+dist/
+
+# Bun
+bun.lockb
+
 # Python virtual environment
 venv/
 .venv/
@@ -29,3 +35,6 @@ logs/
 
 # Docker
 .docker/
+
+# Lavalink
+lavalink/logs/
