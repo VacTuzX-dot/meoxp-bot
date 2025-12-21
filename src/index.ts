@@ -5,6 +5,7 @@ import "dotenv/config";
 
 import { ExtendedClient, Command, Event } from "./types";
 import { createShoukaku } from "./lib/ShoukakuManager";
+import { startApiServer } from "./api";
 
 // Create Client
 const client = new Client({
@@ -106,4 +107,7 @@ const loadEvents = (): void => {
 
   console.log("🚀 Starting bot...");
   await client.login(process.env.TOKEN);
+
+  // Start API server for dashboard
+  startApiServer(client, 4000);
 })();

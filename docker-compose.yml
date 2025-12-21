@@ -7,6 +7,20 @@ services:
       - .env
     ports:
       - "4444:80"
+      - "4000:4000"
     volumes:
       - ./logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
+
+  dashboard:
+    build: ./dashboard
+    container_name: meoxp-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - BOT_API_URL=http://discord-bot:4000
+    env_file:
+      - ./dashboard/.env
+    depends_on:
+      - discord-bot
