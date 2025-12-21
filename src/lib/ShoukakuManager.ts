@@ -116,8 +116,9 @@ export function isLavalinkReady(client: ExtendedClient): boolean {
     return false;
   }
 
-  // State 2 = CONNECTED in Shoukaku
-  const connectedNodes = nodes.filter((n) => n.state === 2);
+  // State: 0=DISCONNECTED, 1=CONNECTING, 2=CONNECTED
+  // Accept >= 1 since 'ready' event fires before state updates to 2
+  const connectedNodes = nodes.filter((n) => n.state >= 1);
 
   // Debug log
   console.log(
@@ -132,7 +133,7 @@ export function isLavalinkReady(client: ExtendedClient): boolean {
 // Get available node or null
 export function getAvailableNode(client: ExtendedClient) {
   const nodes = [...client.shoukaku.nodes.values()];
-  const connectedNodes = nodes.filter((n) => n.state === 2);
+  const connectedNodes = nodes.filter((n) => n.state >= 1);
 
   if (connectedNodes.length === 0) {
     console.warn("[LAVALINK] ⚠️ No connected nodes available");
