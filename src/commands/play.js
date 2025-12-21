@@ -97,7 +97,7 @@ function createYtDlpStream(url) {
     url,
   ]);
 
-  // Pipe through ffmpeg to convert to proper audio format
+  // Pipe through ffmpeg to convert to Ogg/Opus format (Discord native)
   const ffmpeg = spawn("ffmpeg", [
     "-i",
     "pipe:0", // Input from stdin (yt-dlp output)
@@ -105,12 +105,16 @@ function createYtDlpStream(url) {
     "0",
     "-loglevel",
     "0",
+    "-acodec",
+    "libopus", // Use Opus codec
     "-f",
-    "s16le", // Output format: signed 16-bit little-endian
+    "ogg", // Output format: Ogg container
     "-ar",
     "48000", // Sample rate: 48kHz (Discord requirement)
     "-ac",
     "2", // Stereo
+    "-b:a",
+    "128k", // Audio bitrate
     "pipe:1", // Output to stdout
   ]);
 
@@ -382,7 +386,7 @@ async function processQueue(guildId, client, channel = null) {
     const stream = createYtDlpStream(song.url);
 
     const resource = createAudioResource(stream, {
-      inputType: StreamType.Raw,
+      inputType: StreamType.OggOpus,
       inlineVolume: true,
     });
 
