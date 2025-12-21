@@ -18,17 +18,15 @@ module.exports = {
 
     const mode = loopModes[queue.loopMode];
 
-    // Send loop change message
+    // Send loop change message then delete after 3 seconds
     const loopMsg = await message.reply(`${mode.emoji} ${mode.text}แล้วค่ะ~`);
-
-    // Delete after 3 seconds
     setTimeout(() => {
       loopMsg.delete().catch(() => {});
       message.delete().catch(() => {}); // Also delete the command message
     }, 3000);
 
     // Update Now Playing message if exists
-    if (queue.nowPlaying && queue.textChannel) {
+    if (queue.nowPlaying && queue.nowPlayingMessage) {
       const song = queue.nowPlaying;
 
       // Format audio quality string
@@ -84,8 +82,18 @@ module.exports = {
 
       if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
-      // Send updated Now Playing embed
-      queue.textChannel.send({ embeds: [embed] }).catch(() => {});
+      // Edit the existing Now Playing message instead of sending a new one
+      try {
+        await queue.nowPlayingMessage.edit({ embeds: [embed] });
+      } catch (e) {
+        // If edit fails, send a new message
+        if (queue.textChannel) {
+          const npMsg = await queue.textChannel
+            .send({ embeds: [embed] })
+            .catch(() => null);
+          queue.nowPlayingMessage = npMsg;
+        }
+      }
     }
   },
 };

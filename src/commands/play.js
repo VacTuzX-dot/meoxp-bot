@@ -221,6 +221,7 @@ module.exports = {
         player: null,
         loopMode: 0, // 0: Off, 1: Single, 2: Queue
         nowPlaying: null,
+        nowPlayingMessage: null, // Track the Now Playing message for deletion
       });
     }
 
@@ -389,8 +390,16 @@ async function processQueue(guildId, client, channel = null) {
 
     // Send Now Playing message
     if (queue.textChannel) {
+      // Delete old Now Playing message if exists
+      if (queue.nowPlayingMessage) {
+        queue.nowPlayingMessage.delete().catch(() => {});
+      }
+
       const embed = createNowPlayingEmbed(song, queue);
-      queue.textChannel.send({ embeds: [embed] }).catch(() => {});
+      const npMsg = await queue.textChannel
+        .send({ embeds: [embed] })
+        .catch(() => null);
+      queue.nowPlayingMessage = npMsg; // Store reference for future deletion
     }
   } catch (error) {
     console.error("Play error:", error.message);
