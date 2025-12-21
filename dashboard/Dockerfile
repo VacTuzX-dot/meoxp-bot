@@ -1,10 +1,10 @@
-FROM node:20-alpine AS base
+FROM oven/bun:1 AS base
 
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
+COPY package.json bun.lockb* ./
+RUN bun install --frozen-lockfile
 
 # Build
 FROM base AS builder
@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN bun run build
 
 # Production
 FROM base AS runner
@@ -36,4 +36,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["bun", "server.js"]
