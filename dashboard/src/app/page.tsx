@@ -1,4 +1,5 @@
-import { auth, signIn, signOut } from "@/auth";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 
 async function getBotStatus() {
   try {
@@ -37,7 +38,7 @@ async function getQueues() {
 }
 
 export default async function Dashboard() {
-  const session = await auth();
+  const session = await getServerSession();
 
   if (!session) {
     return (
@@ -49,19 +50,12 @@ export default async function Dashboard() {
           <p className="text-gray-400 mb-8">
             กรุณา Login ด้วย Discord เพื่อดูสถานะบอทค่ะนายท่าน~
           </p>
-          <form
-            action={async () => {
-              "use server";
-              await signIn("discord");
-            }}
+          <a
+            href="/api/auth/signin"
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition-all transform hover:scale-105"
           >
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition-all transform hover:scale-105"
-            >
-              🔐 Login with Discord
-            </button>
-          </form>
+            🔐 Login with Discord
+          </a>
         </div>
       </div>
     );
@@ -92,19 +86,12 @@ export default async function Dashboard() {
               alt="avatar"
               className="w-10 h-10 rounded-full"
             />
-            <form
-              action={async () => {
-                "use server";
-                await signOut();
-              }}
+            <a
+              href="/api/auth/signout"
+              className="text-gray-400 hover:text-white transition"
             >
-              <button
-                type="submit"
-                className="text-gray-400 hover:text-white transition"
-              >
-                Logout
-              </button>
-            </form>
+              Logout
+            </a>
           </div>
         </div>
 

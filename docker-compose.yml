@@ -17,7 +17,7 @@ services:
     container_name: meoxp-dashboard
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - BOT_API_URL=http://discord-bot:4000
     env_file:
