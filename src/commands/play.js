@@ -5,12 +5,31 @@ const {
   createAudioResource,
   AudioPlayerStatus,
   VoiceConnectionStatus,
+  StreamType,
 } = require("@discordjs/voice");
-const play = require("play-dl");
+const ytdl = require("@distube/ytdl-core");
+const YouTube = require("youtube-sr").default;
 
-// Simple in-memory queue for now (global state like python version)
-// In a real app, this should be in a separate Manager class.
-// We will store queues on the client object for simplicity in this migration.
+// Helper to extract video ID from various YouTube URL formats
+function extractVideoId(url) {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+// Helper to format duration
+function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds)) return "Unknown";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
 
 module.exports = {
   name: "play",
@@ -45,77 +64,64 @@ module.exports = {
     const statusMsg = await message.reply("🔍 กำลังค้นหาเพลงค่ะ...");
 
     try {
-      // Check for playlist
-      let isPlaylist = query.includes("playlist") && query.includes("list=");
       let songsToAdd = [];
 
-      if (isPlaylist) {
+      // Check if it's a YouTube URL
+      const videoId = extractVideoId(query);
+
+      if (videoId) {
+        console.log("Detected YouTube URL, video ID:", videoId);
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
         try {
-          const playlist = await play.playlist_info(query, {
-            incomplete: true,
-          });
-          const videos = await playlist.all_videos();
+          const info = await ytdl.getInfo(videoUrl);
+          const videoDetails = info.videoDetails;
 
-          videos.forEach((video) => {
-            songsToAdd.push({
-              title: video.title,
-              url: video.url,
-              durationInfo: video.durationRaw,
-              thumbnail: video.thumbnails[0]?.url,
-              requester: message.author.username,
-            });
+          songsToAdd.push({
+            title: videoDetails.title,
+            url: videoUrl,
+            durationInfo: formatDuration(parseInt(videoDetails.lengthSeconds)),
+            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
+            requester: message.author.username,
           });
 
-          await statusMsg.edit(
-            `📚 เพิ่ม Playlist **${playlist.title}** (${songsToAdd.length} เพลง) แล้วค่ะ~`
+          console.log("Video info:", videoDetails.title, videoUrl);
+        } catch (err) {
+          console.error("Failed to get video info:", err.message);
+          return statusMsg.edit(
+            "❌ ไม่สามารถดึงข้อมูลวิดีโอได้ค่ะ อาจจะถูกบล็อกหรือเป็นวิดีโอส่วนตัว 🥺"
           );
-        } catch (e) {
-          // Fallback to search if playlist fails
-          isPlaylist = false;
         }
-      }
-
-      if (!isPlaylist) {
-        let video;
-        let videoUrl; // Store URL separately because video_details might not have it
-
-        // Check if query is a YouTube URL (using regex as fallback)
-        const isYouTubeUrl =
-          query.includes("youtube.com/watch") ||
-          query.includes("youtu.be/") ||
-          play.yt_validate(query) === "video";
-
-        if (isYouTubeUrl) {
-          console.log("Detected YouTube URL:", query);
-          const info = await play.video_info(query);
-          video = info.video_details;
-          // video_details might not have url property, use original query as fallback
-          videoUrl = video.url || query;
-          console.log("Video info:", video?.title, videoUrl);
-        } else {
-          console.log("Searching for:", query);
-          const results = await play.search(query, { limit: 1 });
-          if (results.length === 0) {
+      } else {
+        // Search for video using youtube-sr
+        console.log("Searching for:", query);
+        try {
+          const searchResults = await YouTube.searchOne(query);
+          if (!searchResults) {
             return statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
           }
-          video = results[0];
-          videoUrl = video.url;
-          console.log("Search result:", video?.title, videoUrl);
-        }
 
-        const songToAdd = {
-          title: video.title,
-          url: videoUrl, // Use the stored URL variable
-          durationInfo: video.durationRaw,
-          thumbnail: video.thumbnails ? video.thumbnails[0]?.url : null,
-          requester: message.author.username,
-        };
-        console.log("[DEBUG] Song object created:", JSON.stringify(songToAdd));
-        songsToAdd.push(songToAdd);
+          const videoUrl = searchResults.url;
+          console.log("Search result:", searchResults.title, videoUrl);
+
+          // Get full video info
+          const info = await ytdl.getInfo(videoUrl);
+          const videoDetails = info.videoDetails;
+
+          songsToAdd.push({
+            title: videoDetails.title,
+            url: videoUrl,
+            durationInfo: formatDuration(parseInt(videoDetails.lengthSeconds)),
+            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
+            requester: message.author.username,
+          });
+        } catch (err) {
+          console.error("Search failed:", err.message);
+          return statusMsg.edit("❌ ไม่สามารถค้นหาเพลงได้ค่ะ 🥺");
+        }
       }
 
       // Add to queue
-      console.log("[DEBUG] Adding to queue, songs count:", songsToAdd.length);
       queue.songs.push(...songsToAdd);
 
       // Connect to voice if needed
@@ -138,7 +144,7 @@ module.exports = {
         });
 
         queue.player.on("error", (error) => {
-          console.error(`Error: ${error.message} with resource`);
+          console.error(`Player error: ${error.message}`);
           // Skip to next
           processQueue(message.guild.id, client);
         });
@@ -146,10 +152,8 @@ module.exports = {
 
       if (!queue.nowPlaying) {
         processQueue(message.guild.id, client);
-        if (!isPlaylist) {
-          await statusMsg.delete().catch(() => {}); // Delete waiting msg if playing immediately
-        }
-      } else if (!isPlaylist) {
+        await statusMsg.delete().catch(() => {}); // Delete waiting msg if playing immediately
+      } else {
         // Just added to queue
         const song = songsToAdd[0];
         const embed = new EmbedBuilder()
@@ -198,21 +202,24 @@ async function processQueue(guildId, client) {
   const song = queue.songs.shift();
   queue.nowPlaying = song;
 
-  console.log("[DEBUG] Processing song:", JSON.stringify(song));
-  console.log("[DEBUG] Song URL:", song?.url);
+  console.log("[PLAY] Now playing:", song.title);
 
   try {
     // Validate URL before streaming
     if (!song.url || typeof song.url !== "string") {
-      console.error("Invalid song URL:", JSON.stringify(song));
+      console.error("Invalid song URL:", song);
       return processQueue(guildId, client); // Skip to next
     }
 
-    console.log("[DEBUG] Calling play.stream with URL:", song.url);
-    // Use play-dl to stream
-    const stream = await play.stream(song.url);
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type,
+    // Use ytdl-core to stream audio
+    const stream = ytdl(song.url, {
+      filter: "audioonly",
+      quality: "highestaudio",
+      highWaterMark: 1 << 25, // 32MB buffer for stability
+    });
+
+    const resource = createAudioResource(stream, {
+      inputType: StreamType.Arbitrary,
       inlineVolume: true,
     });
 
