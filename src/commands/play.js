@@ -155,9 +155,6 @@ async function processQueue(guildId, client) {
     // Check if empty
     if (queue.songs.length === 0) {
         queue.nowPlaying = null;
-        // Optionally start a timeout to leave?
-        // simple text:
-        // const channel = client.channels.cache.get(...) // Need text channel context, complex without passing it.
         return;
     }
 
@@ -165,21 +162,24 @@ async function processQueue(guildId, client) {
     queue.nowPlaying = song;
 
     try {
+        // Validate URL before streaming
+        if (!song.url || typeof song.url !== 'string') {
+            console.error('Invalid song URL:', song);
+            return processQueue(guildId, client); // Skip to next
+        }
+
+        // Use play-dl to stream
         const stream = await play.stream(song.url);
         const resource = createAudioResource(stream.stream, {
-            inputType: stream.type
+            inputType: stream.type,
+            inlineVolume: true
         });
 
         queue.player.play(resource);
-
-        // Ideally we want to send "Now Playing" message, but we need the text channel.
-        // We can store the last text channel in the queue object or pass it.
-        // For migration simplicity, we skip auto "Now Playing" message on loop/auto-play
-        // UNLESS we store the Play command's channel. 
-        // Let's improve this later or add a simple channel store.
         
     } catch (error) {
-        console.error('Play error:', error);
-        processQueue(guildId, client); // Try next
+        console.error('Play error:', error.message);
+        // Wait a bit before trying next to avoid spam
+        setTimeout(() => processQueue(guildId, client), 1000);
     }
 }
