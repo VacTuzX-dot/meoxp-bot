@@ -10,12 +10,16 @@ WORKDIR /app
 COPY package.json ./
 COPY bun.lockb* ./
 
-RUN bun install --production
+# Install all dependencies (including dev for build)
+RUN bun install
 
 COPY . .
 
 # Build TypeScript
 RUN bun run build
+
+# Remove dev dependencies after build
+RUN rm -rf node_modules && bun install --production
 
 # Performance optimizations
 ENV UV_THREADPOOL_SIZE=16
