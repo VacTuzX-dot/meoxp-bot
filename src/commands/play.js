@@ -67,15 +67,24 @@ module.exports = {
 
             if (!isPlaylist) {
                 let video;
-                if (play.yt_validate(query) === 'video') {
+                // Check if query is a YouTube URL (using regex as fallback)
+                const isYouTubeUrl = query.includes('youtube.com/watch') || 
+                                     query.includes('youtu.be/') ||
+                                     play.yt_validate(query) === 'video';
+                
+                if (isYouTubeUrl) {
+                     console.log('Detected YouTube URL:', query);
                      const info = await play.video_info(query);
                      video = info.video_details;
+                     console.log('Video info:', video?.title, video?.url);
                 } else {
+                     console.log('Searching for:', query);
                      const results = await play.search(query, { limit: 1 });
                      if (results.length === 0) {
                          return statusMsg.edit('❌ ไม่พบเพลงค่ะ 🥺');
                      }
                      video = results[0];
+                     console.log('Search result:', video?.title, video?.url);
                 }
 
                 songsToAdd.push({
