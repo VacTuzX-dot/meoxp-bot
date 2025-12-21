@@ -39,7 +39,9 @@ const loadCommands = (): void => {
 
   try {
     const commandFiles = readdirSync(commandsPath).filter(
-      (file) => file.endsWith(".ts") || file.endsWith(".js")
+      (file) =>
+        (file.endsWith(".ts") || file.endsWith(".js")) &&
+        !file.endsWith(".d.ts")
     );
 
     for (const file of commandFiles) {
@@ -69,7 +71,9 @@ const loadEvents = (): void => {
 
   try {
     const eventFiles = readdirSync(eventsPath).filter(
-      (file) => file.endsWith(".ts") || file.endsWith(".js")
+      (file) =>
+        (file.endsWith(".ts") || file.endsWith(".js")) &&
+        !file.endsWith(".d.ts")
     );
 
     for (const file of eventFiles) {
