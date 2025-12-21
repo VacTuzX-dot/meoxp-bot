@@ -13,32 +13,41 @@ const categories: Record<
   { title: string; description: string; fields?: any[] }
 > = {
   home: {
-    title: "📚 เมนูช่วยเหลือ",
-    description:
-      "ยินดีต้อนรับค่ะ~ เลือกหมวดหมู่จากเมนูด้านล่างเพื่อดูคำสั่งค่ะ 💕",
+    title: "Help Menu",
+    description: "Select a category from the menu below.",
   },
   music: {
-    title: "🎵 คำสั่งเพลง",
-    description: "คำสั่งสำหรับเล่นเพลงค่ะ~",
+    title: "Music Commands",
+    description: "Commands for playing music.",
     fields: [
-      { name: "!!play <ชื่อ/URL>", value: "เล่นเพลง 🎶", inline: true },
-      { name: "!!skip", value: "ข้ามเพลง ⏭️", inline: true },
-      { name: "!!stop", value: "หยุดชั่วคราว ⏸️", inline: true },
-      { name: "!!resume", value: "เล่นต่อ ▶️", inline: true },
-      { name: "!!queue", value: "ดู Queue 📋", inline: true },
-      { name: "!!np", value: "ดูเพลงที่เล่น 🎵", inline: true },
-      { name: "!!loop", value: "Loop เพลง 🔁", inline: true },
-      { name: "!!shuffle", value: "สับ Queue 🔀", inline: true },
-      { name: "!!clear", value: "ล้าง Queue 🗑️", inline: true },
-      { name: "!!leave", value: "ออกจากห้อง 👋", inline: true },
+      { name: "!!play <query>", value: "Play music", inline: true },
+      { name: "!!skip", value: "Skip track", inline: true },
+      { name: "!!stop", value: "Pause", inline: true },
+      { name: "!!resume", value: "Resume", inline: true },
+      { name: "!!queue", value: "View queue", inline: true },
+      { name: "!!np", value: "Now playing", inline: true },
+      { name: "!!loop", value: "Toggle loop", inline: true },
+      { name: "!!shuffle", value: "Shuffle queue", inline: true },
+      { name: "!!clear", value: "Clear queue", inline: true },
+      { name: "!!join", value: "Join (persistent)", inline: true },
+      { name: "!!leave", value: "Leave channel", inline: true },
+      { name: "!!panel", value: "Control panel", inline: true },
+    ],
+  },
+  tts: {
+    title: "TTS Commands",
+    description: "Text-to-Speech commands.",
+    fields: [
+      { name: "!!say <text>", value: "Speak in Thai", inline: true },
+      { name: "!!say -e <text>", value: "Speak in English", inline: true },
     ],
   },
   admin: {
-    title: "⚙️ คำสั่ง Admin",
-    description: "คำสั่งสำหรับ Admin ค่ะ~",
+    title: "Admin Commands",
+    description: "Admin only commands.",
     fields: [
-      { name: "!!purge <จำนวน>", value: "ลบข้อความ 🗑️", inline: true },
-      { name: "!!server", value: "ดูสถานะ Server 🖥️", inline: true },
+      { name: "!!purge <n>", value: "Delete messages", inline: true },
+      { name: "!!status", value: "Bot status", inline: true },
     ],
   },
 };
@@ -55,11 +64,12 @@ const command: Command = {
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId("help_menu")
-        .setPlaceholder("🔍 เลือกหมวดหมู่...")
+        .setPlaceholder("Select category...")
         .addOptions([
-          { label: "🏠 หน้าแรก", value: "home" },
-          { label: "🎵 เพลง", value: "music" },
-          { label: "⚙️ Admin", value: "admin" },
+          { label: "Home", value: "home" },
+          { label: "Music", value: "music" },
+          { label: "TTS", value: "tts" },
+          { label: "Admin", value: "admin" },
         ])
     );
 
