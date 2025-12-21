@@ -1,10 +1,10 @@
-FROM oven/bun:1 AS base
+FROM oven/bun:1-debian AS base
 
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build
 FROM base AS builder
@@ -22,14 +22,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
