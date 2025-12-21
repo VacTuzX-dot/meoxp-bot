@@ -64,7 +64,7 @@ async function getVideoInfo(url) {
   });
 }
 
-// Create audio stream using yt-dlp
+// Create audio stream using yt-dlp piped through ffmpeg
 function createYtDlpStream(url) {
   const ytdlp = spawn("yt-dlp", [
     "-f",
@@ -77,11 +77,42 @@ function createYtDlpStream(url) {
     url,
   ]);
 
+  // Pipe through ffmpeg to convert to proper audio format
+  const ffmpeg = spawn("ffmpeg", [
+    "-i",
+    "pipe:0", // Input from stdin (yt-dlp output)
+    "-analyzeduration",
+    "0",
+    "-loglevel",
+    "0",
+    "-f",
+    "s16le", // Output format: signed 16-bit little-endian
+    "-ar",
+    "48000", // Sample rate: 48kHz (Discord requirement)
+    "-ac",
+    "2", // Stereo
+    "pipe:1", // Output to stdout
+  ]);
+
+  // Pipe yt-dlp stdout to ffmpeg stdin
+  ytdlp.stdout.pipe(ffmpeg.stdin);
+
   ytdlp.stderr.on("data", (data) => {
     console.error("[yt-dlp]", data.toString());
   });
 
-  return ytdlp.stdout;
+  ffmpeg.stderr.on("data", (data) => {
+    // ffmpeg logs to stderr, only show if debugging
+    // console.error("[ffmpeg]", data.toString());
+  });
+
+  ytdlp.on("close", (code) => {
+    if (code !== 0) {
+      console.error("[yt-dlp] exited with code", code);
+    }
+  });
+
+  return ffmpeg.stdout;
 }
 
 // Helper to format duration
@@ -255,7 +286,7 @@ async function processQueue(guildId, client) {
     const stream = createYtDlpStream(song.url);
 
     const resource = createAudioResource(stream, {
-      inputType: StreamType.Arbitrary,
+      inputType: StreamType.Raw,
       inlineVolume: true,
     });
 
