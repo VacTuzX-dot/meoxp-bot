@@ -3,8 +3,8 @@ import { ExtendedClient, Command } from "../types";
 
 const command: Command = {
   name: "purge",
-  aliases: ["clear", "delete"],
-  description: "Delete messages",
+  aliases: ["delete"],
+  description: "Delete messages (max 100)",
   async execute(
     message: Message,
     args: string[],
@@ -24,19 +24,26 @@ const command: Command = {
 
     try {
       const channel = message.channel as TextChannel;
-      const deleted = await channel.bulkDelete(amount + 1, true);
 
-      const actualDeleted = deleted.size - 1;
-      let replyText = `🗑️ ลบไป **${actualDeleted}** ข้อความแล้วค่ะ~ ✨`;
+      // Delete the command message first
+      await message.delete().catch(() => {});
 
-      if (actualDeleted < amount) {
+      // Fetch and delete messages (max 100 per bulkDelete)
+      const deleted = await channel.bulkDelete(amount, true);
+
+      let replyText = `🗑️ ลบไป **${deleted.size}** ข้อความแล้วค่ะ~ ✨`;
+
+      if (deleted.size < amount) {
         replyText += `\n⚠️ ข้อความบางส่วนเก่าเกิน 14 วัน ลบไม่ได้ค่ะ`;
       }
 
       const reply = await channel.send(replyText);
       setTimeout(() => reply.delete().catch(() => {}), 3000);
     } catch (error) {
-      message.reply(`❌ เกิดข้อผิดพลาด: ${(error as Error).message}`);
+      const errMsg = await (message.channel as TextChannel).send(
+        `❌ เกิดข้อผิดพลาด: ${(error as Error).message}`
+      );
+      setTimeout(() => errMsg.delete().catch(() => {}), 5000);
     }
   },
 };

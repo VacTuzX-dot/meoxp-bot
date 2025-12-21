@@ -60,9 +60,8 @@ export function createShoukaku(
     new Connectors.DiscordJS(client),
     lavalinkNodes,
     {
-      // Node resolver - select available node with least players
+      // Advanced load balancer with weighted scoring
       nodeResolver: (nodes, connection) => {
-        // Filter nodes that are at least CONNECTING
         const availableNodes = [...nodes.values()].filter(
           (node) => node.state >= 1
         );
@@ -72,20 +71,65 @@ export function createShoukaku(
           return undefined;
         }
 
-        // Sort by least players for load balancing
-        return availableNodes.sort(
-          (a, b) => (a.stats?.players ?? 0) - (b.stats?.players ?? 0)
-        )[0];
+        // If only one node, return it
+        if (availableNodes.length === 1) {
+          return availableNodes[0];
+        }
+
+        // Calculate penalty score for each node (lower is better)
+        const scoredNodes = availableNodes.map((node) => {
+          let penalty = 0;
+          const stats = node.stats;
+
+          if (stats) {
+            // Player count penalty (weight: 1.5)
+            penalty += (stats.players || 0) * 1.5;
+
+            // CPU load penalty (weight: 100)
+            const cpuLoad = stats.cpu?.systemLoad ?? 0;
+            penalty += cpuLoad * 100;
+
+            // Memory usage penalty (weight: 50)
+            if (stats.memory) {
+              const memUsage = stats.memory.used / stats.memory.reservable;
+              penalty += memUsage * 50;
+            }
+
+            // Frame stats penalty (nulled frames = bad)
+            if (stats.frameStats) {
+              penalty += (stats.frameStats.nulled || 0) * 5;
+              penalty += (stats.frameStats.deficit || 0) * 2;
+            }
+          }
+
+          // Connection state penalty
+          if (node.state === 1) penalty += 100; // CONNECTING state
+
+          return { node, penalty };
+        });
+
+        // Sort by penalty (lowest first)
+        scoredNodes.sort((a, b) => a.penalty - b.penalty);
+
+        const bestNode = scoredNodes[0].node;
+        console.log(
+          `[LAVALINK] 🎯 Selected node: ${
+            bestNode.name
+          } (penalty: ${scoredNodes[0].penalty.toFixed(2)})`
+        );
+
+        return bestNode;
       },
-      // Connection settings (per Shoukaku docs)
-      moveOnDisconnect: true, // Move players to different node on disconnect
-      resume: true, // Server-side resume
-      resumeByLibrary: true, // Client-side resume (more reliable)
-      resumeTimeout: 60, // Wait 60s before destroying players
-      reconnectTries: 5, // Reconnect attempts
-      reconnectInterval: 5000, // 5s between reconnects
-      restTimeout: 60000, // 60s REST API timeout
-      voiceConnectionTimeout: 15000, // 15s voice connection timeout
+
+      // Optimized connection settings for heavy loads
+      moveOnDisconnect: true,
+      resume: true,
+      resumeByLibrary: true,
+      resumeTimeout: 120, // 2 minutes for heavy loads
+      reconnectTries: 10, // More retries
+      reconnectInterval: 3000, // Faster reconnect
+      restTimeout: 30000, // 30s REST timeout (faster fail)
+      voiceConnectionTimeout: 10000, // 10s voice timeout
     }
   );
 
