@@ -120,10 +120,18 @@ async function processQueue(
         ? result.data
         : (result.data as any)[0];
     if (!track) {
+      console.error("[LAVALINK] No track found in result");
       return processQueue(guildId, client);
     }
 
-    queue.player.playTrack({ track: track.encoded });
+    console.log("[LAVALINK] Playing track:", track.info?.title);
+    console.log(
+      "[LAVALINK] Track encoded:",
+      track.encoded?.substring(0, 50) + "..."
+    );
+
+    // Play the track - use correct format for Shoukaku v4
+    await queue.player.playTrack({ track: { encoded: track.encoded } });
 
     // Send Now Playing message
     if (queue.textChannelId) {
