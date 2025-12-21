@@ -7,7 +7,7 @@ const {
   VoiceConnectionStatus,
   StreamType,
 } = require("@discordjs/voice");
-const ytdl = require("ytdl-core");
+const { spawn } = require("child_process");
 const YouTube = require("youtube-sr").default;
 
 // Helper to extract video ID from various YouTube URL formats
@@ -23,11 +23,72 @@ function extractVideoId(url) {
   return null;
 }
 
+// Get video info using yt-dlp
+async function getVideoInfo(url) {
+  return new Promise((resolve, reject) => {
+    const ytdlp = spawn("yt-dlp", [
+      "-j", // JSON output
+      "--no-playlist",
+      "--no-warnings",
+      url,
+    ]);
+
+    let stdout = "";
+    let stderr = "";
+
+    ytdlp.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ytdlp.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ytdlp.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || "Failed to get video info"));
+        return;
+      }
+      try {
+        const info = JSON.parse(stdout);
+        resolve({
+          title: info.title,
+          url: info.webpage_url || url,
+          duration: info.duration,
+          thumbnail: info.thumbnail,
+        });
+      } catch (e) {
+        reject(new Error("Failed to parse video info"));
+      }
+    });
+  });
+}
+
+// Create audio stream using yt-dlp
+function createYtDlpStream(url) {
+  const ytdlp = spawn("yt-dlp", [
+    "-f",
+    "bestaudio[ext=webm]/bestaudio/best",
+    "-o",
+    "-", // Output to stdout
+    "--no-playlist",
+    "--no-warnings",
+    "--quiet",
+    url,
+  ]);
+
+  ytdlp.stderr.on("data", (data) => {
+    console.error("[yt-dlp]", data.toString());
+  });
+
+  return ytdlp.stdout;
+}
+
 // Helper to format duration
 function formatDuration(seconds) {
   if (!seconds || isNaN(seconds)) return "Unknown";
   const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
@@ -64,34 +125,15 @@ module.exports = {
     const statusMsg = await message.reply("🔍 กำลังค้นหาเพลงค่ะ...");
 
     try {
-      let songsToAdd = [];
+      let videoUrl;
+      let videoInfo;
 
       // Check if it's a YouTube URL
       const videoId = extractVideoId(query);
 
       if (videoId) {
-        console.log("Detected YouTube URL, video ID:", videoId);
-        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-        try {
-          const info = await ytdl.getInfo(videoUrl);
-          const videoDetails = info.videoDetails;
-
-          songsToAdd.push({
-            title: videoDetails.title,
-            url: videoUrl,
-            durationInfo: formatDuration(parseInt(videoDetails.lengthSeconds)),
-            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
-            requester: message.author.username,
-          });
-
-          console.log("Video info:", videoDetails.title, videoUrl);
-        } catch (err) {
-          console.error("Failed to get video info:", err.message);
-          return statusMsg.edit(
-            "❌ ไม่สามารถดึงข้อมูลวิดีโอได้ค่ะ อาจจะถูกบล็อกหรือเป็นวิดีโอส่วนตัว 🥺"
-          );
-        }
+        videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        console.log("Detected YouTube URL:", videoUrl);
       } else {
         // Search for video using youtube-sr
         console.log("Searching for:", query);
@@ -100,29 +142,33 @@ module.exports = {
           if (!searchResults) {
             return statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
           }
-
-          const videoUrl = searchResults.url;
+          videoUrl = searchResults.url;
           console.log("Search result:", searchResults.title, videoUrl);
-
-          // Get full video info
-          const info = await ytdl.getInfo(videoUrl);
-          const videoDetails = info.videoDetails;
-
-          songsToAdd.push({
-            title: videoDetails.title,
-            url: videoUrl,
-            durationInfo: formatDuration(parseInt(videoDetails.lengthSeconds)),
-            thumbnail: videoDetails.thumbnails?.[0]?.url || null,
-            requester: message.author.username,
-          });
         } catch (err) {
           console.error("Search failed:", err.message);
           return statusMsg.edit("❌ ไม่สามารถค้นหาเพลงได้ค่ะ 🥺");
         }
       }
 
+      // Get video info using yt-dlp
+      try {
+        videoInfo = await getVideoInfo(videoUrl);
+        console.log("Video info:", videoInfo.title);
+      } catch (err) {
+        console.error("Failed to get video info:", err.message);
+        return statusMsg.edit("❌ ไม่สามารถดึงข้อมูลวิดีโอได้ค่ะ 🥺");
+      }
+
+      const song = {
+        title: videoInfo.title,
+        url: videoUrl,
+        durationInfo: formatDuration(videoInfo.duration),
+        thumbnail: videoInfo.thumbnail,
+        requester: message.author.username,
+      };
+
       // Add to queue
-      queue.songs.push(...songsToAdd);
+      queue.songs.push(song);
 
       // Connect to voice if needed
       if (
@@ -145,17 +191,14 @@ module.exports = {
 
         queue.player.on("error", (error) => {
           console.error(`Player error: ${error.message}`);
-          // Skip to next
           processQueue(message.guild.id, client);
         });
       }
 
       if (!queue.nowPlaying) {
         processQueue(message.guild.id, client);
-        await statusMsg.delete().catch(() => {}); // Delete waiting msg if playing immediately
+        await statusMsg.delete().catch(() => {});
       } else {
-        // Just added to queue
-        const song = songsToAdd[0];
         const embed = new EmbedBuilder()
           .setTitle("📥 เพิ่มเข้า Queue แล้วค่ะ~")
           .setDescription(`**${song.title}**`)
@@ -185,10 +228,8 @@ async function processQueue(guildId, client) {
   // Handle Loop Logic
   if (queue.nowPlaying) {
     if (queue.loopMode === 1) {
-      // Loop One
       queue.songs.unshift(queue.nowPlaying);
     } else if (queue.loopMode === 2) {
-      // Loop Queue
       queue.songs.push(queue.nowPlaying);
     }
   }
@@ -205,18 +246,13 @@ async function processQueue(guildId, client) {
   console.log("[PLAY] Now playing:", song.title);
 
   try {
-    // Validate URL before streaming
-    if (!song.url || typeof song.url !== "string") {
+    if (!song.url) {
       console.error("Invalid song URL:", song);
-      return processQueue(guildId, client); // Skip to next
+      return processQueue(guildId, client);
     }
 
-    // Use ytdl-core to stream audio
-    const stream = ytdl(song.url, {
-      filter: "audioonly",
-      quality: "highestaudio",
-      highWaterMark: 1 << 25, // 32MB buffer for stability
-    });
+    // Create audio stream using yt-dlp
+    const stream = createYtDlpStream(song.url);
 
     const resource = createAudioResource(stream, {
       inputType: StreamType.Arbitrary,
@@ -226,7 +262,6 @@ async function processQueue(guildId, client) {
     queue.player.play(resource);
   } catch (error) {
     console.error("Play error:", error.message);
-    // Wait a bit before trying next to avoid spam
     setTimeout(() => processQueue(guildId, client), 1000);
   }
 }
