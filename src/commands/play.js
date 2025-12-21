@@ -1,4 +1,8 @@
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  ActivityType,
+  PresenceUpdateStatus,
+} = require("discord.js");
 const {
   joinVoiceChannel,
   createAudioPlayer,
@@ -12,6 +16,21 @@ const YouTube = require("youtube-sr").default;
 
 // Max playlist size
 const MAX_PLAYLIST_SIZE = 500;
+
+// Helper to update bot presence
+function updateBotPresence(client, inVoice) {
+  client.user.setPresence({
+    status: inVoice
+      ? PresenceUpdateStatus.DoNotDisturb
+      : PresenceUpdateStatus.Idle,
+    activities: [
+      {
+        name: inVoice ? "🎵 กำลังเล่นเพลง~" : "เปิดใช้เมนูพิมพ์ !!help ค่ะ 😊",
+        type: ActivityType.Listening,
+      },
+    ],
+  });
+}
 
 // Helper to extract video ID from various YouTube URL formats
 function extractVideoId(url) {
@@ -88,7 +107,7 @@ async function getVideoInfo(url) {
     const ytdlp = spawn("yt-dlp", [
       "-j", // JSON output
       "-f",
-      "bestaudio[ext=webm]/bestaudio/best",
+      "bestaudio[acodec=opus]/bestaudio[acodec=aac]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
       "--no-playlist",
       "--no-warnings",
       url,
@@ -145,9 +164,11 @@ async function getVideoInfo(url) {
 
 // Create audio stream using yt-dlp piped through ffmpeg
 function createYtDlpStream(url) {
+  // Audio format priority: Opus (best) -> AAC -> any audio
+  // This ensures best quality while having fallbacks
   const ytdlp = spawn("yt-dlp", [
     "-f",
-    "bestaudio[ext=webm]/bestaudio/best",
+    "bestaudio[acodec=opus]/bestaudio[acodec=aac]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
     "-o",
     "-", // Output to stdout
     "--no-playlist",
@@ -412,6 +433,9 @@ module.exports = {
           guildId: message.guild.id,
           adapterCreator: message.guild.voiceAdapterCreator,
         });
+
+        // Update bot status to DND when joining voice
+        updateBotPresence(client, true);
 
         queue.player = createAudioPlayer();
         queue.connection.subscribe(queue.player);
