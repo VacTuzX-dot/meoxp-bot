@@ -6,7 +6,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - lavalink
+      lavalink:
+        condition: service_healthy
     ports:
       - "4444:80"
     volumes:
@@ -30,6 +31,12 @@ services:
     networks:
       meoxp-network:
         ipv4_address: 172.28.0.2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2333/version"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 networks:
   meoxp-network:
