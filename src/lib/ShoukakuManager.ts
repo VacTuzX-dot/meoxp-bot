@@ -2,17 +2,17 @@ import { Shoukaku, Connectors, Player, Track, Node } from "shoukaku";
 import { Client, GuildMember } from "discord.js";
 import { ExtendedClient, Queue, Song, LavalinkNode } from "../types";
 
-// Default Lavalink nodes
+// Default Lavalink nodes - can add multiple for load balancing
 const defaultNodes: LavalinkNode[] = [
   {
-    name: "Local",
-    url: "193.226.78.187:6861",
-    auth: process.env.LAVALINK_PASSWORD || "youshallnotpass",
+    name: "Main",
+    url: process.env.LAVALINK_URL as string,
+    auth: process.env.LAVALINK_PASSWORD as string,
     secure: false,
   },
 ];
 
-// Create Shoukaku instance
+// Create Shoukaku instance with load balancing
 export function createShoukaku(
   client: Client,
   nodes?: LavalinkNode[]
@@ -28,17 +28,31 @@ export function createShoukaku(
     new Connectors.DiscordJS(client),
     lavalinkNodes,
     {
-      moveOnDisconnect: false,
+      // Load balancing - use least players
+      nodeResolver: (nodes) => {
+        const availableNodes = [...nodes.values()].filter(
+          (node) => node.state === 2 // CONNECTED
+        );
+        if (!availableNodes.length) return undefined;
+        // Return node with least players
+        return availableNodes.sort(
+          (a, b) => a.stats?.players ?? 0 - (b.stats?.players ?? 0)
+        )[0];
+      },
+      // Faster reconnection
+      moveOnDisconnect: true,
       resume: true,
-      resumeTimeout: 30,
-      reconnectTries: 3,
-      reconnectInterval: 5000,
+      resumeTimeout: 60,
+      reconnectTries: 5,
+      reconnectInterval: 3000, // 3 seconds faster reconnect
     }
   );
 
   // Event handlers
-  shoukaku.on("ready", (name) => {
-    console.log(`[LAVALINK] Node ${name} connected`);
+  shoukaku.on("ready", (name, reconnected) => {
+    console.log(
+      `[LAVALINK] Node ${name} ${reconnected ? "reconnected" : "connected"}`
+    );
   });
 
   shoukaku.on("error", (name, error) => {
@@ -93,7 +107,7 @@ export function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-// Get or create player for a guild
+// Get or create player for a guild with optimized settings
 export async function getPlayer(
   client: ExtendedClient,
   guildId: string,

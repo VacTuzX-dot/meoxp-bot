@@ -13,7 +13,7 @@ plugins:
     clients:
       - MUSIC
       - TVHTML5EMBEDDED
-      - ANDROID_VR
+      - IOS
     skipTrackOnError: true
 
 lavalink:
@@ -41,22 +41,29 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 2000
-    frameBufferDurationMs: 10000
-    youtubePlaylistLoadLimit: 500
-    playerUpdateInterval: 5
+    # Optimized buffer for 8GB RAM
+    bufferDurationMs: 1500
+    frameBufferDurationMs: 8000
+    # Track loading
+    youtubePlaylistLoadLimit: 200
+    playerUpdateInterval: 3
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
     gc-warnings: true
+    # Connection pool
+    trackStuckThresholdMs: 10000
+    resamplingQuality: LOW
+    opusEncodingQuality: 5
+    useSeekGhosting: true
 
 logging:
   file:
     path: ./logs/
   level:
-    root: INFO
+    root: WARN
     lavalink: INFO
 
   logback:
     rollingpolicy:
-      max-file-size: 10MB
-      max-history: 7
+      max-file-size: 5MB
+      max-history: 3
