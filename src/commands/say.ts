@@ -117,8 +117,8 @@ const command: Command = {
       // Play the TTS
       await queue.player.playTrack({ track: { encoded: track.encoded } });
 
-      const langName = lang === "th" ? "Thai" : "English";
-      message.reply(`Speaking (${langName}): "${text}"`);
+      const reply = await message.reply(`Speaking: "${text}"`);
+      setTimeout(() => reply.delete().catch(() => {}), 5000);
     } catch (error) {
       console.error("[TTS] Error:", error);
       message.reply(`TTS Error: ${(error as Error).message}`);
