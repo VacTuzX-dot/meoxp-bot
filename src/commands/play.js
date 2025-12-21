@@ -162,7 +162,7 @@ async function getVideoInfo(url) {
   });
 }
 
-// Create audio stream using yt-dlp piped through ffmpeg
+// Create audio stream using yt-dlp piped through ffmpeg with buffering
 function createYtDlpStream(url) {
   // Audio format priority: Opus (best) -> AAC -> any audio
   // This ensures best quality while having fallbacks
@@ -174,17 +174,39 @@ function createYtDlpStream(url) {
     "--no-playlist",
     "--no-warnings",
     "--quiet",
+    "--buffer-size",
+    "16K", // Increase download buffer
+    "--no-part", // Don't use .part files
     url,
   ]);
 
   // Pipe through ffmpeg to convert to Ogg/Opus format (Discord native)
+  // Added buffering and reconnect options for stability
   const ffmpeg = spawn("ffmpeg", [
+    // Input options (before -i)
+    "-reconnect",
+    "1",
+    "-reconnect_streamed",
+    "1",
+    "-reconnect_delay_max",
+    "5",
+    "-thread_queue_size",
+    "4096", // Increase input queue buffer
     "-i",
     "pipe:0", // Input from stdin (yt-dlp output)
+    // Processing options
     "-analyzeduration",
     "0",
     "-loglevel",
     "0",
+    "-fflags",
+    "+discardcorrupt", // Discard corrupted packets
+    "-flags",
+    "low_delay", // Reduce latency
+    "-probesize",
+    "32", // Faster seeking
+    // Output options
+    "-vn", // No video
     "-acodec",
     "libopus", // Use Opus codec
     "-f",
@@ -195,25 +217,55 @@ function createYtDlpStream(url) {
     "2", // Stereo
     "-b:a",
     "128k", // Audio bitrate
+    "-application",
+    "audio", // Optimize for audio
+    "-compression_level",
+    "10", // Max compression for smaller buffer
+    "-frame_duration",
+    "20", // 20ms frames (Discord standard)
+    "-flush_packets",
+    "1", // Flush packets immediately
     "pipe:1", // Output to stdout
   ]);
 
-  // Pipe yt-dlp stdout to ffmpeg stdin
+  // Pipe yt-dlp stdout to ffmpeg stdin with high water mark
   ytdlp.stdout.pipe(ffmpeg.stdin);
 
+  // Error handling
   ytdlp.stderr.on("data", (data) => {
-    console.error("[yt-dlp]", data.toString());
+    const msg = data.toString();
+    if (!msg.includes("WARNING")) {
+      console.error("[yt-dlp]", msg);
+    }
   });
 
   ffmpeg.stderr.on("data", (data) => {
-    // ffmpeg logs to stderr, only show if debugging
-    // console.error("[ffmpeg]", data.toString());
+    // ffmpeg logs to stderr, only show errors
+    const msg = data.toString();
+    if (msg.includes("Error") || msg.includes("error")) {
+      console.error("[ffmpeg]", msg);
+    }
   });
 
   ytdlp.on("close", (code) => {
-    if (code !== 0) {
+    if (code !== 0 && code !== null) {
       console.error("[yt-dlp] exited with code", code);
     }
+  });
+
+  // Handle process errors
+  ytdlp.on("error", (err) => {
+    console.error("[yt-dlp] process error:", err.message);
+  });
+
+  ffmpeg.on("error", (err) => {
+    console.error("[ffmpeg] process error:", err.message);
+  });
+
+  // Cleanup on stream close
+  ffmpeg.stdout.on("close", () => {
+    ytdlp.kill();
+    ffmpeg.kill();
   });
 
   return ffmpeg.stdout;
