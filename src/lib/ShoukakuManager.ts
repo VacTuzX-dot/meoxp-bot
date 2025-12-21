@@ -6,7 +6,7 @@ import { ExtendedClient, Queue, Song, LavalinkNode } from "../types";
 const defaultNodes: LavalinkNode[] = [
   {
     name: "Local",
-    url: "172.28.0.2:2333",
+    url: "193.226.78.187:6861",
     auth: process.env.LAVALINK_PASSWORD || "youshallnotpass",
     secure: false,
   },
