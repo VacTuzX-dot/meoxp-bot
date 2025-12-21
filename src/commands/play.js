@@ -77,6 +77,8 @@ module.exports = {
 
       if (!isPlaylist) {
         let video;
+        let videoUrl; // Store URL separately because video_details might not have it
+
         // Check if query is a YouTube URL (using regex as fallback)
         const isYouTubeUrl =
           query.includes("youtube.com/watch") ||
@@ -87,9 +89,9 @@ module.exports = {
           console.log("Detected YouTube URL:", query);
           const info = await play.video_info(query);
           video = info.video_details;
-          // video_details doesn't always have url, use original query
-          video.url = video.url || query;
-          console.log("Video info:", video?.title, video?.url);
+          // video_details might not have url property, use original query as fallback
+          videoUrl = video.url || query;
+          console.log("Video info:", video?.title, videoUrl);
         } else {
           console.log("Searching for:", query);
           const results = await play.search(query, { limit: 1 });
@@ -97,12 +99,13 @@ module.exports = {
             return statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
           }
           video = results[0];
-          console.log("Search result:", video?.title, video?.url);
+          videoUrl = video.url;
+          console.log("Search result:", video?.title, videoUrl);
         }
 
         songsToAdd.push({
           title: video.title,
-          url: video.url,
+          url: videoUrl, // Use the stored URL variable
           durationInfo: video.durationRaw,
           thumbnail: video.thumbnails ? video.thumbnails[0]?.url : null,
           requester: message.author.username,
