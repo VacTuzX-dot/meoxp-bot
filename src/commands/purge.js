@@ -21,7 +21,7 @@ module.exports = {
       const actualDeleted = deleted.size - 1;
       let replyText = `🗑️ ลบไป **${actualDeleted}** ข้อความแล้วค่ะ~ ✨`;
 
-      // If we deleted less than requested, some messages were probably too old
+      // If deleted less than requested, some messages were probably too old
       if (actualDeleted < amount) {
         replyText += `\n⚠️ ข้อความบางส่วนเก่าเกิน 14 วัน ลบไม่ได้ค่ะ (ข้อจำกัดของ Discord)`;
       }

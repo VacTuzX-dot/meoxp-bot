@@ -10,9 +10,9 @@ module.exports = {
       queue.nowPlaying = null;
       queue.connection.destroy();
       client.queues.delete(message.guild.id);
-      message.reply("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀");
+      message.reply("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🥺");
     } else {
-      message.reply("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~");
+      message.reply("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~ 😭");
     }
   },
 };

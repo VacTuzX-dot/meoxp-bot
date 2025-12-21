@@ -11,9 +11,9 @@ module.exports = {
       if (queue.player) {
         queue.player.stop(); // Stop playing but don't disconnect
       }
-      message.reply("⏹️ หยุดเล่นเพลงแล้วค่ะ~ หนูยังอยู่ในห้องนะคะ 🎀");
+      message.reply("⏹️ หยุดเล่นเพลงแล้วค่ะ~ 😋");
     } else {
-      message.reply("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~");
+      message.reply("❌ หนูไม่ได้อยู่ในห้องเสียงค่ะ~ 😭");
     }
   },
 };

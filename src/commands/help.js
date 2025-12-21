@@ -64,7 +64,7 @@ function createEmbed(category) {
     .setTitle(data.title)
     .setDescription(data.description)
     .setColor(0xff69b4)
-    .setFooter({ text: "Prefix: !! | เลือกหมวดหมู่จากเมนูด้านล่าง 💕" });
+    .setFooter({ text: "Prefix: !! | เลือกหมวดหมู่จากเมนูด้านล่าง 🩷" });
 
   if (data.fields) {
     embed.addFields(data.fields);
