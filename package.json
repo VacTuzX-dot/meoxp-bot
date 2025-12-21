@@ -1,0 +1,19 @@
+{
+  "name": "meoxp-bot",
+  "version": "1.0.0",
+  "description": "Discord Music Bot migrated to Bun/Discord.js",
+  "main": "index.js",
+  "scripts": {
+    "start": "bun run index.js",
+    "dev": "bun --watch index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "@discordjs/voice": "^0.17.0",
+    "play-dl": "^1.9.7",
+    "libsodium-wrappers": "^0.7.15",
+    "ffmpeg-static": "^5.2.0",
+    "dotenv": "^16.4.5",
+    "systeminformation": "^5.23.5"
+  }
+}
