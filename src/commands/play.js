@@ -7,7 +7,7 @@ const {
   VoiceConnectionStatus,
   StreamType,
 } = require("@discordjs/voice");
-const ytdl = require("@distube/ytdl-core");
+const ytdl = require("ytdl-core");
 const YouTube = require("youtube-sr").default;
 
 // Helper to extract video ID from various YouTube URL formats
