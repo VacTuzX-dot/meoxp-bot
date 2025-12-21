@@ -12,8 +12,9 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - WEB
       - TVHTML5EMBEDDED
+      - ANDROID_VR
+    skipTrackOnError: true
 
 lavalink:
   plugins:
@@ -40,8 +41,8 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 400
-    frameBufferDurationMs: 5000
+    bufferDurationMs: 2000
+    frameBufferDurationMs: 10000
     youtubePlaylistLoadLimit: 500
     playerUpdateInterval: 5
     youtubeSearchEnabled: true
