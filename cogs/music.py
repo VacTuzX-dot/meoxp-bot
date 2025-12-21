@@ -11,6 +11,8 @@ from views.music_controls import MusicControlView
 # Music Queue System
 music_queues = {}
 now_playing = {}
+loop_modes = {} # 0: Off, 1: One, 2: All
+skip_flags = {} # To track manual skips
 
 
 def format_duration(seconds):
@@ -42,6 +44,39 @@ class Music(commands.Cog):
         """เล่นเพลงถัดไปใน queue"""
         queue = get_queue(ctx.guild.id)
         
+        # Determine loop behavior
+        mode = loop_modes.get(ctx.guild.id, 0)
+        skipped = skip_flags.get(ctx.guild.id, False)
+        
+        # Reset skip flag
+        if skipped:
+            skip_flags[ctx.guild.id] = False
+            
+        current = now_playing.get(ctx.guild.id)
+        if current and not skipped:
+            if mode == 1: # Loop One
+                # Push back to front
+                queue.appendleft({
+                    'url': current.get('url'),
+                    'title': current.get('title'),
+                    'duration': current.get('duration'),
+                    'thumbnail': current.get('thumbnail'),
+                    'uploader': current.get('uploader'),
+                    'requester': current.get('requester'),
+                    'audio_url': current.get('audio_url') # Preserve cached URL if possible
+                })
+            elif mode == 2: # Loop All
+                # Push to back
+                queue.append({
+                    'url': current.get('url'),
+                    'title': current.get('title'),
+                    'duration': current.get('duration'),
+                    'thumbnail': current.get('thumbnail'),
+                    'uploader': current.get('uploader'),
+                    'requester': current.get('requester'),
+                    'audio_url': current.get('audio_url')
+                })
+        
         # Import here to avoid circular import
         from cogs.events import auto_leave_pending
         
@@ -72,6 +107,7 @@ class Music(commands.Cog):
                 now_playing[ctx.guild.id] = {
                     'title': player.title,
                     'url': next_song.get('url') or next_song.get('webpage_url'),
+                    'audio_url': next_song.get('audio_url'), # Store for looping
                     'requester': next_song['requester'],
                     'duration': player.duration,
                     'abr': player.abr,
@@ -213,7 +249,7 @@ class Music(commands.Cog):
                 song_info = {
                     'url': data.get('webpage_url') or query,
                     'title': data.get('title', 'Unknown'),
-                    'audio_url': audio_url,
+                    'audio_url': audio_url, # Changed to audio_url to match use
                     'duration': duration,
                     'abr': abr,
                     'acodec': acodec,
@@ -277,6 +313,7 @@ class Music(commands.Cog):
     async def skip(self, ctx):
         """ข้ามไปเพลงถัดไป"""
         if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+            skip_flags[ctx.guild.id] = True # Mark as manually skipped
             ctx.voice_client.stop()
             await ctx.send("⏭️ ข้ามไปเพลงถัดไปค่ะ~")
         else:
@@ -352,7 +389,9 @@ class Music(commands.Cog):
         """ล้าง queue"""
         queue = get_queue(ctx.guild.id)
         queue.clear()
-        await ctx.send("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~ 💕")
+        loop_modes[ctx.guild.id] = 0 # Reset loop mode
+        skip_flags[ctx.guild.id] = False
+        await ctx.send("🗑️ ล้าง Queue เรียบร้อยแล้วค่ะ~ (ปิด Loop loop)")
 
     @commands.command()
     async def stop(self, ctx):
@@ -361,6 +400,8 @@ class Music(commands.Cog):
             queue = get_queue(ctx.guild.id)
             queue.clear()
             now_playing.pop(ctx.guild.id, None)
+            loop_modes.pop(ctx.guild.id, None)
+            skip_flags.pop(ctx.guild.id, None)
             await ctx.voice_client.disconnect()
             await ctx.send("👋 ลาก่อนนะคะ~ ไว้เรียกหนูมาเล่นเพลงอีกนะคะ! 🎀")
 
@@ -386,6 +427,20 @@ class Music(commands.Cog):
         
         ctx.voice_client.source.volume = vol / 100
         await ctx.send(f"🔊 ปรับระดับเสียงเป็น **{vol}%** แล้วค่ะ~")
+
+    @commands.command()
+    async def loop(self, ctx):
+        """เปลี่ยนโหมด Loop (Off -> One -> All)"""
+        current_mode = loop_modes.get(ctx.guild.id, 0)
+        next_mode = (current_mode + 1) % 3
+        loop_modes[ctx.guild.id] = next_mode
+        
+        if next_mode == 0:
+            await ctx.send("➡️ ปิด Loop แล้วค่ะ~")
+        elif next_mode == 1:
+            await ctx.send("🔂 Loop เพลงเดียวค่ะ~")
+        else:
+            await ctx.send("🔁 Loop ทั้งหมดค่ะ~")
 
 
 async def setup(bot):
