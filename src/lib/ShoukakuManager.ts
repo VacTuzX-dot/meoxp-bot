@@ -110,13 +110,31 @@ export function createShoukaku(
 // Check if Lavalink is connected
 export function isLavalinkReady(client: ExtendedClient): boolean {
   const nodes = [...client.shoukaku.nodes.values()];
+
+  if (nodes.length === 0) {
+    console.warn("[LAVALINK] ⚠️ No nodes configured");
+    return false;
+  }
+
+  // State 2 = CONNECTED in Shoukaku
   const connectedNodes = nodes.filter((n) => n.state === 2);
+
+  // Debug log
+  console.log(
+    `[LAVALINK] Nodes: ${nodes.length}, Connected: ${
+      connectedNodes.length
+    }, States: ${nodes.map((n) => n.state).join(",")}`
+  );
+
   return connectedNodes.length > 0;
 }
 
 // Get available node or null
 export function getAvailableNode(client: ExtendedClient) {
-  if (!isLavalinkReady(client)) {
+  const nodes = [...client.shoukaku.nodes.values()];
+  const connectedNodes = nodes.filter((n) => n.state === 2);
+
+  if (connectedNodes.length === 0) {
     console.warn("[LAVALINK] ⚠️ No connected nodes available");
     return null;
   }
