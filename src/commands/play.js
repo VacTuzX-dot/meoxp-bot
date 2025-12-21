@@ -103,16 +103,19 @@ module.exports = {
           console.log("Search result:", video?.title, videoUrl);
         }
 
-        songsToAdd.push({
+        const songToAdd = {
           title: video.title,
           url: videoUrl, // Use the stored URL variable
           durationInfo: video.durationRaw,
           thumbnail: video.thumbnails ? video.thumbnails[0]?.url : null,
           requester: message.author.username,
-        });
+        };
+        console.log("[DEBUG] Song object created:", JSON.stringify(songToAdd));
+        songsToAdd.push(songToAdd);
       }
 
       // Add to queue
+      console.log("[DEBUG] Adding to queue, songs count:", songsToAdd.length);
       queue.songs.push(...songsToAdd);
 
       // Connect to voice if needed
@@ -195,13 +198,17 @@ async function processQueue(guildId, client) {
   const song = queue.songs.shift();
   queue.nowPlaying = song;
 
+  console.log("[DEBUG] Processing song:", JSON.stringify(song));
+  console.log("[DEBUG] Song URL:", song?.url);
+
   try {
     // Validate URL before streaming
     if (!song.url || typeof song.url !== "string") {
-      console.error("Invalid song URL:", song);
+      console.error("Invalid song URL:", JSON.stringify(song));
       return processQueue(guildId, client); // Skip to next
     }
 
+    console.log("[DEBUG] Calling play.stream with URL:", song.url);
     // Use play-dl to stream
     const stream = await play.stream(song.url);
     const resource = createAudioResource(stream.stream, {
