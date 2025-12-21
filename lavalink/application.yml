@@ -21,7 +21,7 @@ lavalink:
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
       snapshot: false
   server:
-    password: "youshallnotpass"
+    password: ${LAVALINK_SERVER_PASSWORD}
     sources:
       youtube: false
       bandcamp: true

@@ -11,6 +11,8 @@ import {
   getPlayer,
   trackToSong,
   formatDuration,
+  isLavalinkReady,
+  getAvailableNode,
 } from "../lib/ShoukakuManager";
 
 // Format audio quality string
@@ -191,10 +193,18 @@ const command: Command = {
     const statusMsg = await message.reply("🔍 กำลังค้นหาเพลงค่ะ...");
 
     try {
+      // Check if Lavalink is ready
+      if (!isLavalinkReady(client)) {
+        await statusMsg.edit(
+          "❌ Lavalink ยังไม่พร้อมค่ะ กำลัง reconnect... กรุณารอสักครู่~"
+        );
+        return;
+      }
+
       // Get the node
-      const node = client.shoukaku.options.nodeResolver(client.shoukaku.nodes);
+      const node = getAvailableNode(client);
       if (!node) {
-        await statusMsg.edit("❌ Lavalink ยังไม่พร้อมค่ะ กรุณารอสักครู่~");
+        await statusMsg.edit("❌ ไม่มี Lavalink node พร้อมใช้งานค่ะ 🥺");
         return;
       }
 
@@ -223,7 +233,8 @@ const command: Command = {
         const maxSongs = Math.min(tracks.length, 500);
 
         for (let i = 0; i < maxSongs; i++) {
-          songsToAdd.push(trackToSong(tracks[i], message.author.username));
+          const song = trackToSong(tracks[i], message.author.username);
+          if (song) songsToAdd.push(song);
         }
 
         let statusText = `📚 เพิ่ม Playlist **${songsToAdd.length}** เพลงแล้วค่ะ~`;
@@ -238,10 +249,12 @@ const command: Command = {
           await statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
           return;
         }
-        songsToAdd.push(trackToSong(track, message.author.username));
+        const song = trackToSong(track, message.author.username);
+        if (song) songsToAdd.push(song);
       } else if (result.loadType === LoadType.TRACK) {
         // Single track
-        songsToAdd.push(trackToSong(result.data, message.author.username));
+        const song = trackToSong(result.data, message.author.username);
+        if (song) songsToAdd.push(song);
       }
 
       // Add to queue
