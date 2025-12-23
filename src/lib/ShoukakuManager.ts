@@ -67,9 +67,9 @@ export function createShoukaku(client: Client): Shoukaku {
     );
   });
 
-  shoukaku.on("disconnect", (name, players, moved) => {
+  shoukaku.on("disconnect", (name, count) => {
     console.log(
-      `[LAVALINK] 🔌 Node "${name}" disconnected. Players: ${players.length}, Moved: ${moved}`
+      `[LAVALINK] 🌷 Node "${name}" disconnected. Players affected: ${count}`
     );
   });
 
