@@ -24,7 +24,7 @@ services:
       args:
         # NEXT_PUBLIC_ vars must be set at build time for Next.js
         # This is the external URL that browser uses to access bot API
-        NEXT_PUBLIC_BOT_API_URL: http://localhost:4000
+        NEXT_PUBLIC_BOT_API_URL: https://botapi.meo.in.th
     container_name: meoxp-dashboard
     restart: unless-stopped
     ports:
