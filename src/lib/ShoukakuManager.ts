@@ -92,9 +92,9 @@ export function isLavalinkReady(client: ExtendedClient): boolean {
 
 // Get available node or null
 export function getAvailableNode(client: ExtendedClient) {
-  // Simple round-robin or first available connected node
+  // Shoukaku v4: State.CONNECTED = 1
   const nodes = [...client.shoukaku.nodes.values()];
-  return nodes.find((node) => node.state === 2) || null;
+  return nodes.find((node) => node.state === 1) || null;
 }
 
 // Initialize queue for a guild
