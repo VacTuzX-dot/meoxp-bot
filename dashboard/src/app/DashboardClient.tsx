@@ -53,7 +53,7 @@ export default function DashboardClient({
       });
     });
 
-    // Polling every 500ms for realtime updates
+    // Polling every 100ms for realtime updates
     const fetchData = async () => {
       try {
         const [statusRes, statsRes, queuesRes] = await Promise.all([
@@ -81,7 +81,7 @@ export default function DashboardClient({
       }
     };
 
-    const pollInterval = setInterval(fetchData, 500);
+    const pollInterval = setInterval(fetchData, 100);
 
     return () => {
       socket.disconnect();
