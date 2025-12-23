@@ -51,7 +51,33 @@ export function createShoukaku(client: Client): Shoukaku {
   const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
   // Event handlers
-  shoukaku.on("error", (_, error) => console.error(error));
+  shoukaku.on("error", (name, error) => {
+    console.error(`[LAVALINK] ❌ Node "${name}" error:`, error);
+  });
+
+  shoukaku.on("ready", (name) => {
+    console.log(`[LAVALINK] ✅ Node "${name}" connected and ready!`);
+  });
+
+  shoukaku.on("close", (name, code, reason) => {
+    console.log(
+      `[LAVALINK] ⚠️ Node "${name}" closed: code=${code}, reason=${
+        reason || "unknown"
+      }`
+    );
+  });
+
+  shoukaku.on("disconnect", (name, players, moved) => {
+    console.log(
+      `[LAVALINK] 🔌 Node "${name}" disconnected. Players: ${players.length}, Moved: ${moved}`
+    );
+  });
+
+  shoukaku.on("reconnecting", (name, reconnectsLeft, reconnectInterval) => {
+    console.log(
+      `[LAVALINK] 🔄 Node "${name}" reconnecting... (${reconnectsLeft} attempts left, interval: ${reconnectInterval}ms)`
+    );
+  });
 
   return shoukaku;
 }
