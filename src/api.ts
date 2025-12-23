@@ -4,7 +4,10 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { ExtendedClient } from "./types";
 
-export function startApiServer(client: ExtendedClient, port: number = 4000) {
+export function startApiServer(
+  client: ExtendedClient,
+  port: number = 4000
+): void {
   const app = express();
   const server = createServer(app);
   const io = new Server(server, {
@@ -110,8 +113,6 @@ export function startApiServer(client: ExtendedClient, port: number = 4000) {
   server.listen(port, () => {
     console.log(`[API] ✅ Server running on port ${port}`);
   });
-
-  return app;
 }
 
 export function getQueuePayload(client: ExtendedClient, guildId: string) {
