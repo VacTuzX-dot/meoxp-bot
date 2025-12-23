@@ -77,7 +77,11 @@ export default async function Dashboard() {
       initialStatus={status}
       initialStats={stats}
       initialQueues={queuesData}
-      apiUrl={process.env.BOT_API_URL || "http://localhost:4000"}
+      apiUrl={
+        process.env.NEXT_PUBLIC_BOT_API_URL ||
+        process.env.BOT_API_URL ||
+        "http://localhost:4000"
+      }
     />
   );
 }

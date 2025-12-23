@@ -53,13 +53,13 @@ export default function DashboardClient({
       });
     });
 
-    // Polling every 100ms for realtime updates
+    // Polling every 500ms for realtime updates
     const fetchData = async () => {
       try {
         const [statusRes, statsRes, queuesRes] = await Promise.all([
-          fetch(`${apiUrl}/api/status`),
-          fetch(`${apiUrl}/api/stats`),
-          fetch(`${apiUrl}/api/queues`),
+          fetch(`${apiUrl}/api/status`, { cache: "no-store" }),
+          fetch(`${apiUrl}/api/stats`, { cache: "no-store" }),
+          fetch(`${apiUrl}/api/queues`, { cache: "no-store" }),
         ]);
 
         if (statusRes.ok) {
@@ -81,7 +81,10 @@ export default function DashboardClient({
       }
     };
 
-    const pollInterval = setInterval(fetchData, 100);
+    // Fetch immediately on mount
+    fetchData();
+
+    const pollInterval = setInterval(fetchData, 500);
 
     return () => {
       socket.disconnect();
