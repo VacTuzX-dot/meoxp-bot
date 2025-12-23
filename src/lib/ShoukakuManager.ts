@@ -84,9 +84,9 @@ export function createShoukaku(client: Client): Shoukaku {
 
 // Check if Lavalink is connected
 export function isLavalinkReady(client: ExtendedClient): boolean {
-  // Use simple check for any connected node
+  // Shoukaku v4: State.CONNECTING = 0, State.CONNECTED = 1, State.DISCONNECTING = 2, State.IDLE = 3
   return [...client.shoukaku.nodes.values()].some(
-    (node) => node.state === 2 // Connected
+    (node) => node.state === 1 // State.CONNECTED
   );
 }
 
