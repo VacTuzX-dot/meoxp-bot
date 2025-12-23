@@ -44,10 +44,6 @@ export default function DashboardClient({
           loopMode: data.loopMode,
         };
 
-        // If queue is empty and not persistent, maybe remove it?
-        // But api/queues endpoint returns all queues in map.
-        // If totalSongs is 0 and nowPlaying is null, it's inactive essentially.
-
         if (index !== -1) {
           newQueues[index] = queueItem;
         } else {
@@ -55,19 +51,41 @@ export default function DashboardClient({
         }
         return { queues: newQueues };
       });
-
-      // Update playing count in stats locally to reflect change
-      setStats((prev: any) => {
-        if (!prev) return prev;
-        // Recalculate playing count
-        // This is a rough estimation since we don't have full state of all queues here easily without iterating queuesData
-        // But we can approximate or wait for stats update
-        return prev;
-      });
     });
+
+    // Polling every 500ms for realtime updates
+    const fetchData = async () => {
+      try {
+        const [statusRes, statsRes, queuesRes] = await Promise.all([
+          fetch(`${apiUrl}/api/status`),
+          fetch(`${apiUrl}/api/stats`),
+          fetch(`${apiUrl}/api/queues`),
+        ]);
+
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setStatus(statusData);
+        }
+
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats(statsData);
+        }
+
+        if (queuesRes.ok) {
+          const queuesDataNew = await queuesRes.json();
+          setQueuesData(queuesDataNew);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      }
+    };
+
+    const pollInterval = setInterval(fetchData, 500);
 
     return () => {
       socket.disconnect();
+      clearInterval(pollInterval);
     };
   }, [apiUrl]);
 
