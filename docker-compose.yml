@@ -17,6 +17,9 @@ services:
           memory: 1G
         reservations:
           memory: 256M
+    networks:
+      - default
+      - lavalink_lavalink-net
 
   dashboard:
     build:
@@ -35,3 +38,7 @@ services:
       - ./dashboard/.env
     depends_on:
       - discord-bot
+
+networks:
+  lavalink_lavalink-net:
+    external: true

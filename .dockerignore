@@ -31,3 +31,4 @@ Thumbs.db
 # Misc
 *.log
 *.tmp
+node_modules
