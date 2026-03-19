@@ -22,4 +22,6 @@ RUN pnpm prune --prod
 ENV UV_THREADPOOL_SIZE=16
 ENV NODE_OPTIONS="--max-old-space-size=512"
 
-CMD ["node", "dist/index.js"]
+# Wait for Lavalink to be ready before starting the bot
+COPY wait-for-lavalink.js ./
+CMD ["node", "wait-for-lavalink.js"]

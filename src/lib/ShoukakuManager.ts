@@ -48,7 +48,12 @@ function getNodes(): LavalinkNode[] {
 export function createShoukaku(client: Client): Shoukaku {
   const nodes = getNodes();
 
-  const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
+  const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes, {
+    moveOnDisconnect: false,
+    resume: false,
+    reconnectTries: 10,
+    reconnectInterval: 5000,
+  });
 
   // Event handlers
   shoukaku.on("error", (name, error) => {
