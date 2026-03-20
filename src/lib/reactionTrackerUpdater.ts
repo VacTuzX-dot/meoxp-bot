@@ -3,7 +3,6 @@ import {
   EmbedBuilder,
   TextChannel,
   Message,
-  MessageReaction,
 } from "discord.js";
 import { ReactionTrackerMapping } from "./ReactionTrackerManager";
 
@@ -14,10 +13,21 @@ import { ReactionTrackerMapping } from "./ReactionTrackerManager";
 const updateQueue = new Map<string, NodeJS.Timeout>();
 
 /**
+ * Type guard to check if an object is a valid Discord Client at runtime.
+ */
+function isValidClient(client: any): client is Client {
+  return (
+    client &&
+    typeof client.isReady === "function" &&
+    typeof client.channels?.fetch === "function"
+  );
+}
+
+/**
  * Debounces a tracker update to avoid hitting rate limits.
  */
 export function debounceUpdateReactionTracker(
-  client: Client,
+  client: Client | null | undefined,
   mapping: ReactionTrackerMapping,
   watchedMessage: Message,
   delayMs = 1500,
@@ -30,12 +40,20 @@ export function debounceUpdateReactionTracker(
   }
 
   // Use the message's client as fallback if the passed one is invalid
-  const activeClient = client || watchedMessage.client;
+  const resolvedClient = isValidClient(client) ? client : watchedMessage.client;
+
+  // Final check: if we still don't have a valid client, we cannot proceed safely.
+  if (!isValidClient(resolvedClient)) {
+    console.warn(
+      `[ReactionTracker][Msg:${mapping.watchedMessageId}] Cannot resolve valid client for update - skipping`,
+    );
+    return;
+  }
 
   const timeout = setTimeout(async () => {
     updateQueue.delete(key);
     try {
-      await performUpdate(activeClient, mapping, watchedMessage);
+      await performUpdate(resolvedClient, mapping, watchedMessage);
     } catch (error) {
       console.error(
         `[ReactionTracker] Fatal error in debounce timeout for ${key}:`,
@@ -58,22 +76,19 @@ async function performUpdate(
   const logPrefix = `[ReactionTracker][Msg:${mapping.watchedMessageId}]`;
 
   try {
-    // 1. Resolve Active Client
-    // We prioritize the passed client, then the message's client.
-    const activeClient = client || watchedMessage.client;
+    // 1. Resolve and Validate Active Client
+    // We prioritize the passed client, then the message's client for extra safety.
+    const activeClient = isValidClient(client) ? client : watchedMessage?.client;
 
-    // 2. Readiness Guard
+    // 2. Readiness and Validity Guard
     // If the client is not yet ready (e.g. during startup or reconnection),
-    // we skip the update. This is non-critical and prevents "undefined" errors.
-    if (!activeClient || !activeClient.isReady()) {
-      return; // Skip silently as requested to keep logs clean
+    // or if it's somehow not a valid client object at runtime.
+    if (!isValidClient(activeClient) || !activeClient.isReady()) {
+      return; // Skip silently to keep logs clean during startup/reconnect
     }
 
-    // 3. Channels Manager Guard
-    // In rare cases (startup/reconnect), the channels manager might be briefly undefined
+    // 3. Channels Manager Guard (is now part of isValidClient, but we keep it for clarity)
     if (!activeClient.channels) {
-      // Log the specific warning the user reported if we hit this, though isReady() should prevent it
-      console.warn(`${logPrefix} Client or channels manager is undefined - Skipping update (non-critical)`);
       return;
     }
 
@@ -97,15 +112,22 @@ async function performUpdate(
     }
 
     // 6. Ensure Watched Message is latest
-    if (watchedMessage.partial) {
+    if (!watchedMessage || watchedMessage.partial) {
       try {
-        await watchedMessage.fetch();
+        if (watchedMessage) {
+          await watchedMessage.fetch();
+        } else {
+          // If for some reason watchedMessage is null/undefined, we can't update.
+          return;
+        }
       } catch {
         return; // Safe skip if watched message is gone
       }
     }
 
     // 7. Find Target Reaction
+    if (!watchedMessage.reactions) return;
+
     let emojiReaction = watchedMessage.reactions.cache.find(
       (r) =>
         r.emoji.id === mapping.emojiIdOrName ||
@@ -117,7 +139,7 @@ async function performUpdate(
       try {
         emojiReaction = await emojiReaction.fetch();
       } catch {
-        // Continue with what we have or skip if count is essential
+        // Continue with what we have
       }
     }
 

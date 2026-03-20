@@ -160,7 +160,7 @@ const command: Command = {
       // Update immediately
       const mapping = reactionTrackerManager.getMapping(watchedMessageId, parsedEmoji);
       if (mapping) {
-        debounceUpdateReactionTracker(client as any, mapping, watchedMessage, 0); // instant update
+        debounceUpdateReactionTracker(client, mapping, watchedMessage, 0); // instant update
       }
 
     } else if (action === "remove") {
