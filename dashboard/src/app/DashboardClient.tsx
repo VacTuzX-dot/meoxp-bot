@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardClientProps {
-  session: any;
   initialStatus: any;
   initialStats: any;
   initialQueues: any;
@@ -26,7 +25,6 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({
-  session,
   initialStatus,
   initialStats,
   initialQueues,
@@ -145,17 +143,12 @@ export default function DashboardClient({
           </div>
 
           <div className="flex items-center gap-2">
-            {session ? (
-              <div className="flex items-center gap-3 bg-secondary/50 px-3 py-1.5 rounded-full border border-border/50">
-                <img src={session.user?.image} className="w-6 h-6 rounded-full" alt="User" />
-                <span className="text-xs font-semibold">{session.user?.name}</span>
-                <a href="/api/auth/signout" className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors uppercase font-bold border-l pl-2 ml-1">Out</a>
-              </div>
-            ) : (
-              <a href="/api/auth/signin" className="text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors border px-4 py-2 rounded-md">
-                Admin Login
-              </a>
-            )}
+            <div className="flex items-center gap-2 rounded-full border border-border/50 bg-secondary/50 px-3 py-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Public Status View
+              </span>
+            </div>
           </div>
         </header>
 

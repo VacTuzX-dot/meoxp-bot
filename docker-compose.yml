@@ -56,8 +56,6 @@ services:
       - "3001:3000"
     environment:
       - BOT_API_URL=http://discord-bot:4000
-    env_file:
-      - ./dashboard/.env
     depends_on:
       discord-bot:
         condition: service_healthy

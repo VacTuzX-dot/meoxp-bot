@@ -1,4 +1,3 @@
-import { getServerSession } from "next-auth";
 import DashboardClient from "./DashboardClient";
 
 async function getBotStatus() {
@@ -38,8 +37,6 @@ async function getQueues() {
 }
 
 export default async function Dashboard() {
-  const session = await getServerSession();
-
   const [status, stats, queuesData] = await Promise.all([
     getBotStatus(),
     getBotStats(),
@@ -48,7 +45,6 @@ export default async function Dashboard() {
 
   return (
     <DashboardClient
-      session={session}
       initialStatus={status}
       initialStats={stats}
       initialQueues={queuesData}
