@@ -7,7 +7,9 @@
     "start": "node dist/index.js",
     "dev": "tsx --watch src/index.ts",
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "setup:hooks": "node scripts/install-git-hooks.mjs"
   },
   "dependencies": {
     "@seald-io/nedb": "^4.0.0",

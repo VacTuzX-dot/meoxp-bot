@@ -1,6 +1,10 @@
-name: Deploy meoxp-bot
+name: CI and Deploy meoxp-bot
 
 on:
+  pull_request:
+    branches:
+      - main
+      - master
   push:
     branches:
       - main
@@ -35,6 +39,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-test
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6

@@ -8,6 +8,8 @@ MeoXP Bot is a TypeScript Discord bot built around three main pieces:
 
 The repository contains the Discord bot, the HTTP and Socket.IO API used by the dashboard, the Next.js dashboard itself, and the Docker and deployment files used to run both services in production.
 
+If you contribute to this repository, use feature branches and pull requests. After `pnpm install`, the repo configures a local `pre-push` hook that blocks direct pushes to `main` and `master` and blocks non-fast-forward pushes by default. This reduces accidental destructive pushes in a prepared clone, but GitHub rulesets or branch protection remain the authoritative enforcement. See `CONTRIBUTING.md`.
+
 ## What the project currently includes
 
 - Music playback through Discord voice channels using `discord.js`, `shoukaku`, and an external Lavalink node
@@ -399,8 +401,9 @@ The repository includes `.github/workflows/deploy.yml`.
 
 Trigger:
 
+- pull requests targeting `main` or `master`
 - push to `main`
-- manual `workflow_dispatch`
+- manual `workflow_dispatch` from `main`
 
 Current pipeline behavior:
 
@@ -409,8 +412,10 @@ Current pipeline behavior:
    - sets up Node.js 24 and pnpm
    - runs `pnpm install --no-frozen-lockfile`
    - runs `pnpm run build`
+   - runs for pull requests into `main` or `master`, and for pushes to `main`
 
 2. `deploy`
+   - runs only for `push` to `main` or manual dispatch from `main`
    - connects to the Tailscale tailnet using `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET`
    - SSHes to the deployment host
    - runs `git pull origin main`
@@ -452,8 +457,12 @@ The workflow fixes `TAG=meoxpbot` during deployment and relies on labels to stop
 |   '-- .env.example             Dashboard environment template
 +-- lavalink/
 |   '-- application.yml          Example Lavalink configuration
++-- .githooks/
+|   '-- pre-push                Local safeguard against direct protected-branch pushes and non-fast-forward updates
 +-- Dockerfile                   Bot production image
 +-- docker-compose.yml           Multi-service local and production Compose file
++-- scripts/
+|   '-- install-git-hooks.mjs   Configures core.hooksPath for this clone
 +-- wait-for-lavalink.js         Container startup wait script for the bot
 +-- test_tracker.ts              Manual tracker regression harness
 '-- .github/workflows/deploy.yml Deployment workflow
@@ -479,6 +488,17 @@ The workflow fixes `TAG=meoxpbot` during deployment and relies on labels to stop
 - `!!shell` executes arbitrary shell commands and should remain restricted to a trusted owner ID
 
 ## Notes for contributors and maintainers
+
+Read `CONTRIBUTING.md` before opening a pull request or pushing from a new clone.
+
+Branch safety workflow:
+
+- run `pnpm install` once after cloning so the repo can configure `core.hooksPath=.githooks`
+- create feature branches from `main`
+- push the feature branch and open a pull request instead of pushing to `main` or `master`
+- expect the local `pre-push` hook to block direct pushes to `main` and `master`
+- expect the local `pre-push` hook to block non-fast-forward pushes unless you intentionally bypass it
+- treat the local hook as a safety net only; the real enforcement must live in GitHub rulesets or branch protection
 
 If you are extending the project:
 

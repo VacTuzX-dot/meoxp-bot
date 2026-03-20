@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+zeros="0000000000000000000000000000000000000000"
+protected_branches="${PROTECTED_BRANCHES:-main master}"
+bypass="${ALLOW_REPO_PUSH_BYPASS:-0}"
+
+if [ "$bypass" = "1" ]; then
+  exit 0
+fi
+
+is_protected_branch() {
+  branch="$1"
+
+  for protected_branch in $protected_branches; do
+    if [ "$branch" = "$protected_branch" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+print_bypass_help() {
+  printf '%s\n' "Set ALLOW_REPO_PUSH_BYPASS=1 for an intentional admin push, or use git push --no-verify to skip local hooks."
+  printf '%s\n' "GitHub branch protection or rulesets must still enforce the real policy on the canonical repository."
+}
+
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  case "$remote_ref" in
+    refs/heads/*) ;;
+    *) continue ;;
+  esac
+
+  branch=${remote_ref#refs/heads/}
+
+  if is_protected_branch "$branch"; then
+    printf '%s\n' "Push blocked: direct pushes to '$branch' are disabled in this clone." >&2
+    printf '%s\n' "Push a feature branch and open a pull request instead." >&2
+    print_bypass_help >&2
+    exit 1
+  fi
+
+  if [ "$local_sha" != "$zeros" ] && [ "$remote_sha" != "$zeros" ]; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" >/dev/null 2>&1; then
+      printf '%s\n' "Push blocked: non-fast-forward update detected for '$branch'." >&2
+      printf '%s\n' "This usually means a force push or another history rewrite." >&2
+      print_bypass_help >&2
+      exit 1
+    fi
+  fi
+done
+
+exit 0
