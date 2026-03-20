@@ -97,6 +97,10 @@ export class ReactionTrackerManager {
   public getGuildMappings(guildId: string): ReactionTrackerMapping[] {
     return this.mappings.filter((m) => m.guildId === guildId);
   }
+
+  public getMappingsByBotMessageId(botMessageId: string): ReactionTrackerMapping[] {
+    return this.mappings.filter((m) => m.botMessageId === botMessageId);
+  }
 }
 
 export const reactionTrackerManager = new ReactionTrackerManager();
