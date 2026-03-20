@@ -1,0 +1,57 @@
+name: Deploy meoxp-bot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9 # adjust to specific pnpm version if needed
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and Typecheck
+        run: pnpm run build
+        
+      # Since 'npm test' doesn't exist yet, we only run build/typecheck as our QA checks per project constraints.
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Connect to Tailnet
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-actions
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/meoxp-bot
+            git pull origin main
+            docker compose up -d --build

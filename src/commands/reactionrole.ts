@@ -66,14 +66,23 @@ const command: Command = {
       }
 
       // เช็คว่ามีข้อความอยู่ในห้องนี้ไหม 
+      let targetMessage;
       try {
-        await message.channel.messages.fetch(messageId);
+        targetMessage = await message.channel.messages.fetch(messageId);
       } catch (err) {
          message.reply("❌ ไม่พบข้อความดังกล่าวในห้องแชทนี้ (Message Not Found)");
          return;
       }
 
       const parsedEmoji = parseEmoji(emojiArg);
+      
+      // ให้บอทลองกด react ด้วยอีโมจินั้น เพื่อให้ผู้ใช้กดตามได้ง่ายๆ และเป็นการเช็คว่าอีโมจิถูกต้อง
+      try {
+        await targetMessage.react(parsedEmoji);
+      } catch (err) {
+        message.reply("❌ ไม่สามารถ react อีโมจินี้ได้ โปรดตรวจสอบว่าเป็นรูปที่ถูกต้องหรือไม่ (หรืออาจเป็นอีโมจิจากเซิร์ฟเวอร์อื่นที่บอทไม่มีสิทธิ์)");
+        return;
+      }
 
       reactionRoleManager.addMapping({
         guildId: message.guild.id,

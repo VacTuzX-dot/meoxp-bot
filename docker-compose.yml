@@ -10,6 +10,7 @@ services:
       - "4000:4000"
     volumes:
       - ./logs:/app/logs
+      - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       resources:
