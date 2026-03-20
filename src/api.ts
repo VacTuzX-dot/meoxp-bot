@@ -3,6 +3,7 @@ import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { ExtendedClient } from "./types";
+import { isLavalinkReady } from "./lib/ShoukakuManager";
 
 export function startApiServer(
   client: ExtendedClient,
@@ -35,7 +36,6 @@ export function startApiServer(
     res.json({ status: "ok", timestamp: Date.now() });
   });
 
-  // Bot status
   app.get("/api/status", (req, res) => {
     const uptime = client.uptime || 0;
     const uptimeHours = Math.floor(uptime / 1000 / 60 / 60);
@@ -43,48 +43,36 @@ export function startApiServer(
 
     res.json({
       online: client.isReady(),
+      lavalink: isLavalinkReady(client),
       uptime: `${uptimeHours}h ${uptimeMinutes}m`,
-      uptimeMs: uptime,
       ping: client.ws.ping,
-      user: client.user
-        ? {
-            id: client.user.id,
-            username: client.user.username,
-            avatar: client.user.displayAvatarURL(),
-          }
-        : null,
+      // Only public info
+      bot: {
+        username: client.user?.username || "MeoXP",
+        avatar: client.user?.displayAvatarURL() || null,
+      },
     });
   });
 
-  // Bot stats
   app.get("/api/stats", (req, res) => {
     const guilds = client.guilds.cache.size;
     const users = client.guilds.cache.reduce(
       (acc, g) => acc + g.memberCount,
       0,
     );
-    const channels = client.channels.cache.size;
     const activeQueues = client.queues.size;
     const playingQueues = [...client.queues.values()].filter(
       (q) => q.nowPlaying,
     ).length;
 
-    // Memory usage
-    const memUsage = process.memoryUsage();
-
     res.json({
       guilds,
       users,
-      channels,
       queues: {
         total: activeQueues,
         playing: playingQueues,
       },
-      memory: {
-        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
-        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-        rss: Math.round(memUsage.rss / 1024 / 1024),
-      },
+      // Removed memory and channels for security
     });
   });
 

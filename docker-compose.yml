@@ -1,8 +1,12 @@
 services:
   discord-bot:
+    image: meoxp-bot:${TAG:-latest}
     build: .
     container_name: meoxp-discord-bot
     restart: unless-stopped
+    labels:
+      - "com.meoxp.bot.project=meoxp-bot"
+      - "com.meoxp.bot.service=discord-bot"
     env_file:
       - .env
     ports:
@@ -29,6 +33,7 @@ services:
       start_period: 120s
 
   dashboard:
+    image: meoxp-dashboard:${TAG:-latest}
     build:
       context: ./dashboard
       args:
@@ -37,6 +42,9 @@ services:
         NEXT_PUBLIC_BOT_API_URL: https://botapi.meo.in.th
     container_name: meoxp-dashboard
     restart: unless-stopped
+    labels:
+      - "com.meoxp.bot.project=meoxp-bot"
+      - "com.meoxp.bot.service=dashboard"
     ports:
       - "3001:3000"
     environment:
