@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build and Typecheck
         run: pnpm run build
-        
+
       # Since 'npm test' doesn't exist yet, we only run build/typecheck as our QA checks per project constraints.
 
   deploy:
@@ -43,7 +43,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:github-actions
+          tags: tag:cicd
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
