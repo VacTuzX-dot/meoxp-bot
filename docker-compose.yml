@@ -1,7 +1,11 @@
 services:
   discord-bot:
     image: meoxp-bot:${TAG:-meoxpbot}
-    build: .
+    build:
+      context: .
+      labels:
+        - "com.meoxp.bot.project=meoxp-bot"
+        - "com.meoxp.bot.service=discord-bot"
     container_name: meoxp-discord-bot
     restart: unless-stopped
     labels:
@@ -40,6 +44,9 @@ services:
         # NEXT_PUBLIC_ vars must be set at build time for Next.js
         # This is the external URL that browser uses to access bot API
         NEXT_PUBLIC_BOT_API_URL: https://botapi.meo.in.th
+      labels:
+        - "com.meoxp.bot.project=meoxp-bot"
+        - "com.meoxp.bot.service=dashboard"
     container_name: meoxp-dashboard
     restart: unless-stopped
     labels:

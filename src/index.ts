@@ -104,8 +104,14 @@ const loadEvents = (): void => {
   // Initialize NoSQL Managers first to ensure data is ready before events fire
   const { reactionRoleManager } = require("./lib/ReactionRoleManager");
   const { reactionTrackerManager } = require("./lib/ReactionTrackerManager");
-  await reactionRoleManager.init();
-  await reactionTrackerManager.init();
+  try {
+    console.log("[Debug #15] [Stage: restart reload] Initializing NoSQL managers...");
+    await reactionRoleManager.init();
+    await reactionTrackerManager.init();
+    console.log("[Debug #15] [Stage: restart reload] NoSQL managers initialized successfully.");
+  } catch (err) {
+    console.error("[Debug #15] [Stage: restart reload] Failed to init managers:", err);
+  }
 
   // Load events only after managers are ready
   loadEvents();
@@ -117,6 +123,9 @@ const loadEvents = (): void => {
 
   console.log("🚀 Starting bot...");
   await client.login(process.env.TOKEN);
+  
+  // Debug #9 client validity check at startup
+  console.log(`[Debug #9] [Stage: client validity check] Is ready? ${client.isReady()}, Channels cache size: ${client.channels.cache.size}`);
 
   // Start API server for dashboard
   startApiServer(client, 4000);

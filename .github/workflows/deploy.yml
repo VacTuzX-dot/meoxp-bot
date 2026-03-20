@@ -61,18 +61,22 @@ jobs:
             export TAG=meoxpbot
             echo "Starting deployment for tag: $TAG"
             
-            # 1. Identify and stop old project containers safely using label filtering
+            # 1. Explicitly build the image first to stabilize tags and minimize downtime
+            echo "Building new project images..."
+            docker compose build
+            
+            # 2. Identify and stop old project containers safely using label filtering
             echo "Stopping old project containers..."
             docker ps -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker stop
             docker ps -a -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker rm
             
-            # 2. Redeploy with the fixed tag
-            # Using --force-recreate and --build for a fresh state
+            # 3. Redeploy with the fixed tag
+            # We retain --force-recreate --build to ensure final state meets expectations perfectly
             docker compose up -d --force-recreate --build
             
-            # 3. Cleanup dangling project images safely
+            # 4. Cleanup dangling project images safely
             # Prevents disk bloat while protecting unrelated system images
             echo "Pruning dangling project images..."
-            docker image prune -f --filter "label=com.meoxp.bot.project=meoxp-bot"
+            docker image prune -f --filter "label=com.meoxp.bot.project=meoxp-bot" --filter "dangling=true"
             
             echo "Deployment completed successfully for tag: $TAG"
