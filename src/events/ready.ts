@@ -1,10 +1,11 @@
-import { Events, ActivityType, PresenceUpdateStatus, Client } from "discord.js";
-import { ExtendedClient, Event } from "../types";
+import { Events, ActivityType, PresenceUpdateStatus } from "discord.js";
+import { ExtendedClient, defineEvent } from "../types";
 
-const event: Event = {
+const event = defineEvent({
   name: Events.ClientReady,
   once: true,
-  execute(client: ExtendedClient) {
+  execute(readyClient, _client: ExtendedClient) {
+    const client = readyClient as ExtendedClient;
     console.log(`✅ Logged in as ${client.user?.tag}`);
 
     // Set initial status to idle (not in any voice channel)
@@ -18,6 +19,6 @@ const event: Event = {
       ],
     });
   },
-};
+});
 
 export default event;

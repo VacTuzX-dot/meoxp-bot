@@ -1,10 +1,11 @@
-import { Client, Message, Collection } from "discord.js";
+import { Client, ClientEvents, Collection, Message } from "discord.js";
 import { Shoukaku, Player } from "shoukaku";
 
 // Extended Discord Client with Shoukaku
 export interface ExtendedClient extends Client {
   shoukaku: Shoukaku;
   commands: Collection<string, Command>;
+  aliases: Collection<string, string>;
   queues: Map<string, Queue>;
   io?: any;
 }
@@ -21,11 +22,26 @@ export interface Command {
   ) => Promise<void> | void;
 }
 
+export type EventArgs<K extends keyof ClientEvents> = [
+  ...ClientEvents[K],
+  ExtendedClient,
+];
+
 // Event interface - the last argument is always the ExtendedClient
-export interface Event {
-  name: string;
+export interface Event<K extends keyof ClientEvents = keyof ClientEvents> {
+  name: K;
   once?: boolean;
-  execute: (...args: any[]) => void;
+  execute: (...args: EventArgs<K>) => Promise<void> | void;
+}
+
+export interface AnyEvent {
+  name: keyof ClientEvents;
+  once?: boolean;
+  execute: (...args: unknown[]) => Promise<void> | void;
+}
+
+export function defineEvent<K extends keyof ClientEvents>(event: Event<K>): AnyEvent {
+  return event as unknown as AnyEvent;
 }
 
 // Song interface

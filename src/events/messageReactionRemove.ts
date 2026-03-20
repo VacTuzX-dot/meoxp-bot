@@ -1,14 +1,22 @@
-import { Events, MessageReaction, User, PartialMessageReaction, PartialUser, Message } from "discord.js";
-import { Event, ExtendedClient } from "../types";
+import {
+  Events,
+  MessageReaction,
+  User,
+  PartialMessageReaction,
+  PartialUser,
+  MessageReactionEventDetails,
+} from "discord.js";
+import { ExtendedClient, defineEvent } from "../types";
 import { reactionTrackerManager } from "../lib/ReactionTrackerManager";
 import { debounceUpdateReactionTracker } from "../lib/reactionTrackerUpdater";
 
-const event: Event = {
+const event = defineEvent({
   name: Events.MessageReactionRemove,
   async execute(
     reaction: MessageReaction | PartialMessageReaction,
     user: User | PartialUser,
-    client: ExtendedClient
+    _details: MessageReactionEventDetails,
+    _client: ExtendedClient,
   ) {
     console.log(`\n[Debug #1/#2] [Stage: reaction event registration & raw reactionRemove firing] Event received for message ID: ${reaction.message.id}`);
 
@@ -55,8 +63,13 @@ const event: Event = {
     if (trackerMapping) {
       console.log(`[Debug #5] [Stage: tracker config lookup] Match found! Guild: ${trackerMapping.guildId}`);
       if (trackerMapping.guildId === reaction.message.guild.id) {
+        const trackerClient = reaction.message.client;
         console.log(`[Debug #6] [Stage: debounce scheduling] Scheduling debounce update for botMsgID: ${trackerMapping.botMessageId}`);
-        debounceUpdateReactionTracker(client, trackerMapping.botMessageId, trackerMapping.botMessageChannelId);
+        debounceUpdateReactionTracker(
+          trackerClient,
+          trackerMapping.botMessageId,
+          trackerMapping.botMessageChannelId,
+        );
       } else {
          console.log(`[Debug #5] Guild mismatch: expected ${trackerMapping.guildId}, got ${reaction.message.guild.id}`);
       }
@@ -64,6 +77,6 @@ const event: Event = {
       console.log(`[Debug #5] [Stage: tracker config lookup] No match found.`);
     }
   },
-};
+});
 
 export default event;

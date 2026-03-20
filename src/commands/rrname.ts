@@ -1,4 +1,4 @@
-import { Message, PermissionsBitField, EmbedBuilder } from "discord.js";
+import { Message, PermissionsBitField, EmbedBuilder, Role } from "discord.js";
 import { Command, ExtendedClient } from "../types";
 import { reactionTrackerManager } from "../lib/ReactionTrackerManager";
 import { reactionRoleManager } from "../lib/ReactionRoleManager";
@@ -63,11 +63,11 @@ const command: Command = {
       const displayEmoji = parsedEmoji.length > 15 ? `<:emoji:${parsedEmoji}>` : parsedEmoji;
 
       // --- Validation: Role Mapping ---
-      let targetRole: any = null;
+      let targetRole: Role | null = null;
       if (roleArg) {
         const roleIdMatch = roleArg.match(/<@&(\d+)>/);
         const roleId = roleIdMatch ? roleIdMatch[1] : roleArg;
-        targetRole = message.guild.roles.cache.get(roleId);
+        targetRole = message.guild.roles.cache.get(roleId) ?? null;
         
         if (!targetRole) {
           message.reply("❌ ไม่พบยศดังกล่าว (โปรดตรวจสอบอีกครั้งหรือใช้วิธี Mention) !");
@@ -111,9 +111,13 @@ const command: Command = {
           .setDescription("ระบบกำลังเตรียมความพร้อม...")
           .setFooter({ text: "Total count: 0" });
           
-        const textChannel = message.channel as any;
+        if (!("send" in message.channel) || typeof message.channel.send !== "function") {
+          message.reply("❌ ช่องนี้ไม่รองรับการส่งข้อความของบอท");
+          return;
+        }
+
         try {
-          const botMsg = await textChannel.send({ embeds: [initialEmbed] });
+          const botMsg = await message.channel.send({ embeds: [initialEmbed] });
           targetBotMessageId = botMsg.id;
         } catch (err) {
           message.reply("❌ บอทไม่มีสิทธิ์ในการส่งข้อความในช่องนี้ (Missing Send Messages / Embed Links permission)");

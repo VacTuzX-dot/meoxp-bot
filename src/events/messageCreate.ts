@@ -1,9 +1,9 @@
 import { Events, Message } from "discord.js";
-import { ExtendedClient, Event } from "../types";
+import { ExtendedClient, defineEvent } from "../types";
 
 const PREFIX = "!!";
 
-const event: Event = {
+const event = defineEvent({
   name: Events.MessageCreate,
   execute(message: Message, client: ExtendedClient) {
     if (message.author.bot) return;
@@ -16,9 +16,10 @@ const event: Event = {
     if (!commandName) return;
 
     // Get command from commands or aliases
+    const aliasCommandName = client.aliases.get(commandName);
     const command =
       client.commands.get(commandName) ||
-      client.commands.get((client as any).aliases?.get(commandName));
+      (aliasCommandName ? client.commands.get(aliasCommandName) : undefined);
 
     if (!command) return;
 
@@ -29,6 +30,6 @@ const event: Event = {
       message.reply("❌ เกิดข้อผิดพลาดค่ะ 🥺");
     }
   },
-};
+});
 
 export default event;

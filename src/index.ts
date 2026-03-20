@@ -3,7 +3,7 @@ import { join } from "path";
 import { readdirSync } from "fs";
 import "dotenv/config";
 
-import { ExtendedClient, Command, Event } from "./types";
+import { ExtendedClient, Command, AnyEvent } from "./types";
 import { createShoukaku } from "./lib/ShoukakuManager";
 import { startApiServer } from "./api";
 
@@ -62,7 +62,7 @@ const loadCommands = (): void => {
     }
 
     // Store aliases on client for access in messageCreate
-    (client as any).aliases = aliases;
+    client.aliases = aliases;
   } catch (error) {
     console.error("Error loading commands:", error);
   }
@@ -81,7 +81,8 @@ const loadEvents = (): void => {
 
     for (const file of eventFiles) {
       const filePath = join(eventsPath, file);
-      const event: Event = require(filePath).default || require(filePath);
+      const loadedModule = require(filePath);
+      const event: AnyEvent = loadedModule.default || loadedModule;
 
       if (event.name) {
         if (event.once) {

@@ -4,7 +4,7 @@ import {
   ActivityType,
   PresenceUpdateStatus,
 } from "discord.js";
-import { ExtendedClient, Event } from "../types";
+import { ExtendedClient, defineEvent } from "../types";
 import { destroyPlayer } from "../lib/ShoukakuManager";
 
 // Store timeout IDs per guild
@@ -25,7 +25,7 @@ function updateBotPresence(client: ExtendedClient, inVoice: boolean): void {
   });
 }
 
-const event: Event = {
+const event = defineEvent({
   name: Events.VoiceStateUpdate,
   execute(oldState: VoiceState, newState: VoiceState, client: ExtendedClient) {
     const botMember = oldState.guild.members.me || newState.guild.members.me;
@@ -118,6 +118,6 @@ const event: Event = {
       }
     }
   },
-};
+});
 
 export default event;

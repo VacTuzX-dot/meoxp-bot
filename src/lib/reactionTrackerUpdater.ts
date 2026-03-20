@@ -1,32 +1,57 @@
 import {
   Client,
   EmbedBuilder,
-  TextChannel,
   Message,
-  Collection,
+  TextChannel,
 } from "discord.js";
-import { ReactionTrackerMapping, reactionTrackerManager } from "./ReactionTrackerManager";
+import { reactionTrackerManager } from "./ReactionTrackerManager";
 
 /**
- * Key: botMessageId, Value: NodeJS.Timeout
+ * Key: botMessageId, Value: pending update state
  */
-const updateQueue = new Map<string, NodeJS.Timeout>();
+interface PendingReactionTrackerUpdate {
+  botMessageChannelId: string;
+  client: Client;
+  timeout: NodeJS.Timeout;
+}
+
+const updateQueue = new Map<string, PendingReactionTrackerUpdate>();
+
+function describeClientCandidate(client: unknown): Record<string, unknown> {
+  if (!client || typeof client !== "object") {
+    return { valueType: typeof client };
+  }
+
+  const candidate = client as Record<string, unknown>;
+  const channels =
+    candidate.channels && typeof candidate.channels === "object"
+      ? (candidate.channels as Record<string, unknown>)
+      : undefined;
+
+  return {
+    valueType: typeof client,
+    constructor: candidate.constructor?.name ?? "Unknown",
+    keys: Object.keys(candidate).slice(0, 10),
+    hasIsReady: typeof candidate.isReady === "function",
+    hasChannels: Boolean(candidate.channels),
+    channelFetchType: typeof channels?.fetch,
+    looksLikeReactionEventDetails:
+      "type" in candidate &&
+      "burst" in candidate &&
+      typeof candidate.burst === "boolean",
+  };
+}
 
 /**
  * Strict type guard for Discord Client with required runtime properties.
- * Checks both instanceof and essential runtime properties to ensure
- * the object is a genuine Discord.js Client instance.
  */
 function isValidClient(client: unknown): client is Client {
-  if (!client || typeof client !== "object") return false;
-  if (!(client instanceof Client)) return false;
-
-  // Runtime property checks to ensure genuine Discord.js Client
-  const clientObj = client as unknown as Record<string, unknown>;
-  if (typeof clientObj.isReady !== "function") return false;
-  if (!clientObj.channels || !(clientObj.channels instanceof Collection)) return false;
-
-  return true;
+  return (
+    client instanceof Client &&
+    typeof client.isReady === "function" &&
+    Boolean(client.channels) &&
+    typeof client.channels.fetch === "function"
+  );
 }
 
 /**
@@ -38,22 +63,36 @@ export function debounceUpdateReactionTracker(
   botMessageId: string,
   botMessageChannelId: string,
   delayMs = 1500,
-) {
-  if (!botMessageId) return;
+) : void {
+  if (!botMessageId || !botMessageChannelId) return;
+
   if (!client || !isValidClient(client)) {
-    console.warn(`[ReactionTracker] debounceUpdateReactionTracker called with invalid client. Skipping.`);
+    console.warn(
+      `[ReactionTracker] debounceUpdateReactionTracker called with invalid client. Skipping.`,
+      describeClientCandidate(client),
+    );
     return;
   }
 
-  if (updateQueue.has(botMessageId)) {
-    clearTimeout(updateQueue.get(botMessageId)!);
+  const pendingUpdate = updateQueue.get(botMessageId);
+  if (pendingUpdate) {
+    clearTimeout(pendingUpdate.timeout);
   }
 
   const timeout = setTimeout(async () => {
+    const scheduledUpdate = updateQueue.get(botMessageId);
+    if (!scheduledUpdate) {
+      return;
+    }
+
     updateQueue.delete(botMessageId);
     console.log(`[Debug #7] [Stage: debounce callback execution] Callback running for botMsgID: ${botMessageId}`);
     try {
-      await performUpdate(client, botMessageId, botMessageChannelId);
+      await performUpdate(
+        scheduledUpdate.client,
+        botMessageId,
+        scheduledUpdate.botMessageChannelId,
+      );
     } catch (error) {
       console.error(
         `[ReactionTracker][BotMsg:${botMessageId}] Fatal error in debounce timeout:`,
@@ -62,7 +101,11 @@ export function debounceUpdateReactionTracker(
     }
   }, delayMs);
 
-  updateQueue.set(botMessageId, timeout);
+  updateQueue.set(botMessageId, {
+    botMessageChannelId,
+    client,
+    timeout,
+  });
 }
 
 /**
@@ -73,24 +116,17 @@ async function performUpdate(
   client: Client,
   botMessageId: string,
   botMessageChannelId: string,
-) {
+): Promise<void> {
   const logPrefix = `[ReactionTracker][BotMsg:${botMessageId}]`;
   console.log(`\n[Debug #8] [Stage: performUpdate invocation] Entering performUpdate for botMsg: ${botMessageId} channel: ${botMessageChannelId}`);
 
   try {
     // 1. Resolve and Validate Active Client
-    // Strict runtime guard: verify object exists, is Client instance, and has required methods/properties
     if (!client || !isValidClient(client)) {
-      console.log(`[Debug #9] [Stage: client validity check] Invalid client! isValidClient: false`);
-      if (client) {
-         console.warn(`[Debug #9] --- INVALID CLIENT SHAPE DUMP ---`);
-         console.warn(`[Debug #9] Type: ${typeof client}`);
-         console.warn(`[Debug #9] Constructor: ${(client as Record<string, unknown>).constructor?.name}`);
-         console.warn(`[Debug #9] Keys:`, Object.keys(client).slice(0, 15));
-         console.warn(`[Debug #9] Is it a Discord Reaction? ${'message' in (client as Record<string, unknown>) && 'emoji' in (client as Record<string, unknown>)}`);
-         console.warn(`[Debug #9] Is it a Discord Message? ${'channel' in (client as Record<string, unknown>) && 'author' in (client as Record<string, unknown>)}`);
-         console.warn(`[Debug #9] ---------------------------------`);
-      }
+      console.warn(
+        `[Debug #9] [Stage: client validity check] Invalid client!`,
+        describeClientCandidate(client),
+      );
       return;
     }
 
@@ -241,4 +277,3 @@ async function performUpdate(
     console.error(`${logPrefix} Unexpected update error:`, error);
   }
 }
-
