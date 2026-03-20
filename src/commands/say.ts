@@ -15,7 +15,7 @@ const command: Command = {
   async execute(
     message: Message,
     args: string[],
-    client: ExtendedClient
+    client: ExtendedClient,
   ): Promise<void> {
     const member = message.member;
     if (!member?.voice.channel) {
@@ -25,7 +25,7 @@ const command: Command = {
 
     if (args.length === 0) {
       message.reply(
-        "💬 กรุณาพิมพ์ข้อความที่ต้องการให้หนูพูดนะคะนายท่าน~ เช่น `!!say สวัสดี`"
+        "💬 กรุณาพิมพ์ข้อความที่ต้องการให้หนูพูดนะคะนายท่าน~ เช่น `!!say สวัสดี`",
       );
       return;
     }

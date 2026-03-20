@@ -6,7 +6,7 @@ import { ExtendedClient } from "./types";
 
 export function startApiServer(
   client: ExtendedClient,
-  port: number = 4000
+  port: number = 4000,
 ): void {
   const app = express();
   const server = createServer(app);
@@ -61,12 +61,12 @@ export function startApiServer(
     const guilds = client.guilds.cache.size;
     const users = client.guilds.cache.reduce(
       (acc, g) => acc + g.memberCount,
-      0
+      0,
     );
     const channels = client.channels.cache.size;
     const activeQueues = client.queues.size;
     const playingQueues = [...client.queues.values()].filter(
-      (q) => q.nowPlaying
+      (q) => q.nowPlaying,
     ).length;
 
     // Memory usage

@@ -67,7 +67,7 @@ const event: Event = {
     if (oldState.channelId === botVoiceChannel.id) {
       // Count members in the channel (excluding bots)
       const membersInChannel = botVoiceChannel.members.filter(
-        (member) => !member.user.bot
+        (member) => !member.user.bot,
       ).size;
 
       if (membersInChannel === 0) {
@@ -91,7 +91,7 @@ const event: Event = {
           const currentChannel = oldState.guild.members.me?.voice?.channel;
           if (currentChannel) {
             const currentMembers = currentChannel.members.filter(
-              (member) => !member.user.bot
+              (member) => !member.user.bot,
             ).size;
 
             if (currentMembers === 0) {
