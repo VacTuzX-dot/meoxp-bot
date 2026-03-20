@@ -41,7 +41,8 @@ A Discord music bot built with TypeScript, discord.js, and Shoukaku (Lavalink).
 
 ### Requirements
 
-- Node.js 18+ or Bun
+- Node.js 20+
+- pnpm 9+
 - Lavalink server
 - Docker (optional)
 
@@ -63,9 +64,9 @@ docker-compose up -d --build
 ### Run Locally
 
 ```bash
-bun install
-bun run build
-bun run start
+pnpm install
+pnpm run build
+pnpm run start
 ```
 
 ## Tech Stack
@@ -73,7 +74,8 @@ bun run start
 - TypeScript
 - discord.js v14
 - Shoukaku (Lavalink wrapper)
-- Bun runtime
+- Node.js runtime
+- pnpm package manager
 - Docker
 
 ## Project Structure

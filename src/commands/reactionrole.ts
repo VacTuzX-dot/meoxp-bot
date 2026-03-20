@@ -84,7 +84,7 @@ const command: Command = {
         return;
       }
 
-      reactionRoleManager.addMapping({
+      const success = await reactionRoleManager.addMapping({
         guildId: message.guild.id,
         channelId: message.channel.id,
         messageId: messageId,
@@ -92,7 +92,11 @@ const command: Command = {
         roleId: role.id
       });
       
-      message.reply(`✅ ห้อยอีโมจิ ${emojiArg} เข้ากับข้อความ ${messageId} เพื่อมอบยศ ${role.name} สำเร็จ!`);
+      if (success) {
+        message.reply(`✅ ห้อยอีโมจิ ${emojiArg} เข้ากับข้อความ ${messageId} เพื่อมอบยศ ${role.name} สำเร็จ! (บันทึกข้อมูลลง NoSQL แล้ว)`);
+      } else {
+        message.reply("❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง NoSQL ค่ะ");
+      }
     }
 
     else if (action === "remove") {
@@ -105,10 +109,10 @@ const command: Command = {
       }
 
       const parsedEmoji = parseEmoji(emojiArg);
-      const success = reactionRoleManager.removeMapping(messageId, parsedEmoji);
+      const success = await reactionRoleManager.removeMapping(messageId, parsedEmoji);
 
       if (success) {
-        message.reply(`✅ นำการตั้งค่าสำหรับอีโมจิ ${emojiArg} ที่มีกับข้อความ ${messageId} ออกเรียบร้อยแล้ว`);
+        message.reply(`✅ นำการตั้งค่าสำหรับอีโมจิ ${emojiArg} ที่มีกับข้อความ ${messageId} ออกเรียบร้อยแล้ว (อัปเดต NoSQL แล้ว)`);
       } else {
         message.reply("❌ ไม่พบการตั้งค่านี้ (หรืออาจจะถูกลบไปแล้ว)");
       }

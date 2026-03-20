@@ -102,6 +102,12 @@ const loadEvents = (): void => {
   loadCommands();
   loadEvents();
 
+  // Initialize NoSQL Managers
+  const { reactionRoleManager } = require("./lib/ReactionRoleManager");
+  const { reactionTrackerManager } = require("./lib/ReactionTrackerManager");
+  await reactionRoleManager.init();
+  await reactionTrackerManager.init();
+
   if (!process.env.TOKEN) {
     console.error("❌ Error: TOKEN not found in .env");
     process.exit(1);

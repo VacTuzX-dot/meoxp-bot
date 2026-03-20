@@ -109,7 +109,7 @@ const command: Command = {
           },
           {
             name: "🔧 Runtime",
-            value: `Bun ${process.versions.bun || "N/A"}`,
+            value: `Node.js ${process.version}`,
             inline: true,
           }
         )

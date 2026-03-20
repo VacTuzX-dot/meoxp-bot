@@ -43,7 +43,8 @@ const event: Event = {
     const emojiIdOrName = reaction.emoji.id || reaction.emoji.name;
     if (!emojiIdOrName) return;
 
-    // --- REACTION TRACKER CHECK ---
+    // --- REACTION TRACKER CHECK (ONLY) ---
+    // We explicitly SKIP ReactionRole logic here because the user requested that roles should NOT be removed on unreact.
     const trackerMapping = reactionTrackerManager.getMapping(reaction.message.id, emojiIdOrName);
     if (trackerMapping && trackerMapping.guildId === reaction.message.guild.id) {
       debounceUpdateReactionTracker(client as any, trackerMapping, reaction.message as any);

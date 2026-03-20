@@ -1,5 +1,6 @@
 import { join } from "path";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
+import Datastore from "@seald-io/nedb";
 
 export interface ReactionTrackerMapping {
   guildId: string;
@@ -11,68 +12,82 @@ export interface ReactionTrackerMapping {
 }
 
 export class ReactionTrackerManager {
-  private filePath: string;
+  private db: Datastore;
   public mappings: ReactionTrackerMapping[] = [];
 
   constructor() {
-    this.filePath = join(__dirname, "../../data/reactionTrackers.json");
-    this.init();
-  }
-
-  private init() {
     const dataDir = join(__dirname, "../../data");
     if (!existsSync(dataDir)) {
       mkdirSync(dataDir, { recursive: true });
     }
 
-    if (existsSync(this.filePath)) {
-      try {
-        const data = readFileSync(this.filePath, "utf-8");
-        this.mappings = JSON.parse(data);
-        console.log(`✅ Loaded ${this.mappings.length} reaction trackers.`);
-      } catch (error) {
-        console.error("❌ Failed to load reaction trackers JSON", error);
-        this.mappings = [];
-      }
-    } else {
-      this.save();
-    }
+    this.db = new Datastore({
+      filename: join(dataDir, "reactionTrackers.db"),
+      autoload: true,
+    });
   }
 
-  private save() {
-    try {
-      writeFileSync(this.filePath, JSON.stringify(this.mappings, null, 2), "utf-8");
-    } catch (error) {
-      console.error("❌ Failed to save reaction trackers JSON", error);
-    }
+  public async init() {
+    return new Promise<void>((resolve, reject) => {
+      this.db.find({}, (err: Error | null, docs: ReactionTrackerMapping[]) => {
+        if (err) {
+          console.error("❌ Failed to load reaction trackers from NoSQL:", err);
+          return reject(err);
+        }
+        this.mappings = docs;
+        console.log(`✅ Loaded ${this.mappings.length} reaction trackers from NoSQL.`);
+        resolve();
+      });
+    });
   }
 
-  public addMapping(mapping: ReactionTrackerMapping): boolean {
-    const exists = this.mappings.findIndex(
-      (m) => m.watchedMessageId === mapping.watchedMessageId && m.emojiIdOrName === mapping.emojiIdOrName
-    );
+  public async addMapping(mapping: ReactionTrackerMapping): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.db.update(
+        { watchedMessageId: mapping.watchedMessageId, emojiIdOrName: mapping.emojiIdOrName },
+        mapping,
+        { upsert: true },
+        (err) => {
+          if (err) {
+            console.error("❌ Failed to save reaction tracker to NoSQL:", err);
+            return resolve(false);
+          }
+          const index = this.mappings.findIndex(
+            (m) => m.watchedMessageId === mapping.watchedMessageId && m.emojiIdOrName === mapping.emojiIdOrName
+          );
 
-    if (exists !== -1) {
-      this.mappings[exists] = mapping;
-    } else {
-      this.mappings.push(mapping);
-    }
-    
-    this.save();
-    return true;
+          if (index !== -1) {
+            this.mappings[index] = mapping;
+          } else {
+            this.mappings.push(mapping);
+          }
+          resolve(true);
+        }
+      );
+    });
   }
 
-  public removeMapping(watchedMessageId: string, emojiIdOrName: string): boolean {
-    const initialLength = this.mappings.length;
-    this.mappings = this.mappings.filter(
-      (m) => !(m.watchedMessageId === watchedMessageId && m.emojiIdOrName === emojiIdOrName)
-    );
-    
-    if (this.mappings.length !== initialLength) {
-      this.save();
-      return true;
-    }
-    return false;
+  public async removeMapping(watchedMessageId: string, emojiIdOrName: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.db.remove(
+        { watchedMessageId, emojiIdOrName },
+        {},
+        (err, numRemoved) => {
+          if (err) {
+            console.error("❌ Failed to remove reaction tracker from NoSQL:", err);
+            return resolve(false);
+          }
+          if (numRemoved > 0) {
+            this.mappings = this.mappings.filter(
+              (m) => !(m.watchedMessageId === watchedMessageId && m.emojiIdOrName === emojiIdOrName)
+            );
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        }
+      );
+    });
   }
 
   public getMapping(watchedMessageId: string, emojiIdOrName: string): ReactionTrackerMapping | undefined {

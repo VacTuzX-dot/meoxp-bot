@@ -81,7 +81,14 @@ const command: Command = {
         }
       }
 
-      reactionTrackerManager.addMapping({
+      // Auto-react to the watched message
+      try {
+        await watchedMessage.react(parsedEmoji);
+      } catch (err) {
+        console.error("❌ Failed to auto-react to watched message:", err);
+      }
+
+      const success = await reactionTrackerManager.addMapping({
         guildId: message.guild.id,
         channelId: message.channel.id,
         watchedMessageId: watchedMessageId,
@@ -90,7 +97,11 @@ const command: Command = {
         botMessageId: targetBotMessageId
       });
       
-      message.reply(`✅ ติดตั้งระบบ Reaction Tracker สำเร็จ! ให้บอทติดตามข้อความ ${watchedMessageId} ด้วยอีโมจิ ${emojiArg}`);
+      if (success) {
+        message.reply(`✅ ติดตั้งระบบ Reaction Tracker สำเร็จ! ให้บอทติดตามข้อความ ${watchedMessageId} ด้วยอีโมจิ ${emojiArg} (บันทึกข้อมูลลง NoSQL แล้ว)`);
+      } else {
+        message.reply("❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง NoSQL ค่ะ");
+      }
       
       // Update immediately
       const mapping = reactionTrackerManager.getMapping(watchedMessageId, parsedEmoji);
@@ -108,10 +119,10 @@ const command: Command = {
       }
 
       const parsedEmoji = parseEmoji(emojiArg);
-      const success = reactionTrackerManager.removeMapping(watchedMessageId, parsedEmoji);
+      const success = await reactionTrackerManager.removeMapping(watchedMessageId, parsedEmoji);
 
       if (success) {
-        message.reply(`✅ นำการตั้งค่าสำหรับอีโมจิ ${emojiArg} ที่มีกับข้อความ ${watchedMessageId} ออกเรียบร้อยแล้ว`);
+        message.reply(`✅ นำการตั้งค่าสำหรับอีโมจิ ${emojiArg} ที่มีกับข้อความ ${watchedMessageId} ออกเรียบร้อยแล้ว (อัปเดต NoSQL แล้ว)`);
       } else {
         message.reply("❌ ไม่พบการตั้งค่านี้ (หรืออาจจะถูกลบไปแล้ว)");
       }
