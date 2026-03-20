@@ -188,10 +188,14 @@ async function performUpdate(
     }
 
     // 6. Update the message with all embeds
-    if (embeds.length > 0) {
-      // Comparison check to avoid unnecessary edits if content is identical? 
-      // For now, simpler to just edit as the data is likely changed.
-      await botMessage.edit({ content: "", embeds: embeds });
+    if (embeds && embeds.length > 0) {
+      try {
+        await botMessage.edit({ content: "", embeds });
+      } catch (e) {
+        console.error(`${logPrefix} Failed to edit bot message with updated tracker:`, e);
+      }
+    } else {
+      console.warn(`${logPrefix} No valid embeds constructed, skipping update.`);
     }
   } catch (error) {
     console.error(`${logPrefix} Unexpected update error:`, error);

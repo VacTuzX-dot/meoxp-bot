@@ -112,8 +112,13 @@ const command: Command = {
           .setFooter({ text: "Total count: 0" });
           
         const textChannel = message.channel as any;
-        const botMsg = await textChannel.send({ embeds: [initialEmbed] });
-        targetBotMessageId = botMsg.id;
+        try {
+          const botMsg = await textChannel.send({ embeds: [initialEmbed] });
+          targetBotMessageId = botMsg.id;
+        } catch (err) {
+          message.reply("❌ บอทไม่มีสิทธิ์ในการส่งข้อความในช่องนี้ (Missing Send Messages / Embed Links permission)");
+          return;
+        }
       } else if (targetBotMessageId) {
         try {
           await message.channel.messages.fetch(targetBotMessageId);
