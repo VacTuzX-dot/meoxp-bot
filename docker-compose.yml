@@ -1,6 +1,6 @@
 services:
   discord-bot:
-    image: meoxp-bot:${TAG:-latest}
+    image: meoxp-bot:${TAG:-meoxpbot}
     build: .
     container_name: meoxp-discord-bot
     restart: unless-stopped
@@ -33,7 +33,7 @@ services:
       start_period: 120s
 
   dashboard:
-    image: meoxp-dashboard:${TAG:-latest}
+    image: meoxp-dashboard:${TAG:-meoxpbot}
     build:
       context: ./dashboard
       args:

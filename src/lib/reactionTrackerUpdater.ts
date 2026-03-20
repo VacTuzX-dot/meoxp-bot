@@ -1,4 +1,10 @@
-import { Client, EmbedBuilder, TextChannel, Message, MessageReaction } from "discord.js";
+import {
+  Client,
+  EmbedBuilder,
+  TextChannel,
+  Message,
+  MessageReaction,
+} from "discord.js";
 import { ReactionTrackerMapping } from "./ReactionTrackerManager";
 
 /**
@@ -14,7 +20,7 @@ export function debounceUpdateReactionTracker(
   client: Client,
   mapping: ReactionTrackerMapping,
   watchedMessage: Message,
-  delayMs = 1500
+  delayMs = 1500,
 ) {
   if (!mapping?.botMessageId) return;
   const key = mapping.botMessageId;
@@ -31,7 +37,10 @@ export function debounceUpdateReactionTracker(
     try {
       await performUpdate(activeClient, mapping, watchedMessage);
     } catch (error) {
-      console.error(`[ReactionTracker] Fatal error in debounce timeout for ${key}:`, error);
+      console.error(
+        `[ReactionTracker] Fatal error in debounce timeout for ${key}:`,
+        error,
+      );
     }
   }, delayMs);
 
@@ -41,7 +50,11 @@ export function debounceUpdateReactionTracker(
 /**
  * Performs the actual update of the tracker message.
  */
-async function performUpdate(client: Client, mapping: ReactionTrackerMapping, watchedMessage: Message) {
+async function performUpdate(
+  client: Client,
+  mapping: ReactionTrackerMapping,
+  watchedMessage: Message,
+) {
   const logPrefix = `[ReactionTracker][Msg:${mapping.watchedMessageId}]`;
 
   try {
@@ -50,14 +63,20 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
     const activeClient = client || watchedMessage.client;
 
     if (!activeClient?.channels) {
-      console.error(`${logPrefix} Client or channels manager is undefined. (Passed: ${!!client}, MsgRef: ${!!watchedMessage.client})`);
+      console.error(
+        `${logPrefix} Client or channels manager is undefined. (Passed: ${!!client}, MsgRef: ${!!watchedMessage.client})`,
+      );
       return;
     }
 
     // 2. Fetch Bot Channel
-    const botChannel = await activeClient.channels.fetch(mapping.botMessageChannelId).catch(() => null);
+    const botChannel = await activeClient.channels
+      .fetch(mapping.botMessageChannelId)
+      .catch(() => null);
     if (!botChannel || !botChannel.isTextBased()) {
-      console.warn(`${logPrefix} Bot channel ${mapping.botMessageChannelId} not found or not text-based.`);
+      console.warn(
+        `${logPrefix} Bot channel ${mapping.botMessageChannelId} not found or not text-based.`,
+      );
       return;
     }
 
@@ -68,18 +87,29 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
     try {
       botMessage = await textChannel.messages.fetch(mapping.botMessageId);
     } catch (err) {
-      console.log(`${logPrefix} Bot tracker message ${mapping.botMessageId} not found. Likely deleted.`);
-      return; 
+      console.log(
+        `${logPrefix} Bot tracker message ${mapping.botMessageId} not found. Likely deleted.`,
+      );
+      return;
     }
 
     // 4. Ensure Watched Message is latest
     if (watchedMessage.partial) {
-      await watchedMessage.fetch().catch((e) => console.warn(`${logPrefix} Failed to fetch partial watched message:`, e.message));
+      await watchedMessage
+        .fetch()
+        .catch((e) =>
+          console.warn(
+            `${logPrefix} Failed to fetch partial watched message:`,
+            e.message,
+          ),
+        );
     }
 
     // 5. Find Target Reaction
     let emojiReaction = watchedMessage.reactions.cache.find(
-      (r) => (r.emoji.id === mapping.emojiIdOrName || r.emoji.name === mapping.emojiIdOrName)
+      (r) =>
+        r.emoji.id === mapping.emojiIdOrName ||
+        r.emoji.name === mapping.emojiIdOrName,
     );
 
     // 6. Handle Partial Reaction
@@ -87,33 +117,38 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
       try {
         emojiReaction = await emojiReaction.fetch();
       } catch (e) {
-        console.warn(`${logPrefix} Failed to fetch partial reaction:`, (e as Error).message);
+        console.warn(
+          `${logPrefix} Failed to fetch partial reaction:`,
+          (e as Error).message,
+        );
       }
     }
 
     let usersList: string[] = [];
     let realCount = 0;
-    
+
     // 7. Process Users if reaction exists
     if (emojiReaction && emojiReaction.users) {
       try {
         // Fetch up to 100 users to stay beneath API and Embed limits
         const users = await emojiReaction.users.fetch({ limit: 100 });
-        usersList = users
-          .filter((u) => !u.bot)
-          .map((u) => `<@${u.id}>`);
-        
+        usersList = users.filter((u) => !u.bot).map((u) => `<@${u.id}>`);
+
         realCount = emojiReaction.count - (emojiReaction.me ? 1 : 0);
       } catch (e) {
-        console.error(`${logPrefix} Failed to fetch users for reaction:`, (e as Error).message);
+        console.error(
+          `${logPrefix} Failed to fetch users for reaction:`,
+          (e as Error).message,
+        );
       }
     }
 
     // 8. Construct Embed
-    const displayEmoji = mapping.emojiIdOrName.length > 15 
-      ? `<:emoji:${mapping.emojiIdOrName}>` 
-      : mapping.emojiIdOrName;
-    
+    const displayEmoji =
+      mapping.emojiIdOrName.length > 15
+        ? `<:emoji:${mapping.emojiIdOrName}>`
+        : mapping.emojiIdOrName;
+
     const MAX_DISPLAY = 80;
     const countToDisplay = Math.max(usersList.length, realCount);
 
@@ -126,12 +161,14 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
       embed.setDescription("ยังไม่มีคนกดอิโมจินี้เลย 🥺");
     } else {
       const displayUsers = usersList.slice(0, MAX_DISPLAY);
-      let desc = displayUsers.map((mention, idx) => `**${idx + 1}.** ${mention}`).join("\n");
-      
+      let desc = displayUsers
+        .map((mention, idx) => `**${idx + 1}.** ${mention}`)
+        .join("\n");
+
       if (usersList.length > MAX_DISPLAY || realCount > MAX_DISPLAY) {
         const remaining = Math.max(0, countToDisplay - MAX_DISPLAY);
         if (remaining > 0) {
-           desc += `\n\n...และเพื่อนคนอื่นๆ อีก ${remaining} คน (แสดงผลสูงสุด ${MAX_DISPLAY} คน)`;
+          desc += `\n\n...และเพื่อนคนอื่นๆ อีก ${remaining} คน (แสดงผลสูงสุด ${MAX_DISPLAY} คน)`;
         }
       }
 
@@ -144,7 +181,6 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
 
     // 9. Update the message
     await botMessage.edit({ content: "", embeds: [embed] });
-
   } catch (error) {
     console.error(`${logPrefix} Unexpected update error:`, error);
   }

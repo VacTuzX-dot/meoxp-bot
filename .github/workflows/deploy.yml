@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -54,34 +54,22 @@ jobs:
             # Fetch latest code
             git pull origin main
             
-            # Generate deployment tag from short commit SHA
-            DEPLOY_TAG=$(git rev-parse --short HEAD)
-            echo "Starting deployment for tag: $DEPLOY_TAG"
+            # Use fixed tag for the project
+            export TAG=meoxpbot
+            echo "Starting deployment for tag: $TAG"
             
-            # 1. Identify and stop old containers for this project
-            # This ensures a clean slate as requested
-            echo "Identifying old project containers..."
-            old_containers=$(docker ps -a -q --filter "label=com.meoxp.bot.project=meoxp-bot")
-            if [ ! -z "$old_containers" ]; then
-              echo "Stopping and removing old containers: $old_containers"
-              docker stop $old_containers || true
-              docker rm $old_containers || true
-            else
-              echo "No old containers found."
-            fi
+            # 1. Identify and stop old project containers safely using label filtering
+            echo "Stopping old project containers..."
+            docker ps -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker stop
+            docker ps -a -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker rm
             
-            # 2. Redeploy with the new tag
-            # Using --force-recreate and --build as requested
-            export TAG=$DEPLOY_TAG
+            # 2. Redeploy with the fixed tag
+            # Using --force-recreate and --build for a fresh state
             docker compose up -d --force-recreate --build
             
-            # 3. Tag the newly built images as 'latest' for stability/traceability
-            docker tag meoxp-bot:$TAG meoxp-bot:latest
-            docker tag meoxp-dashboard:$TAG meoxp-dashboard:latest
-            
-            # 4. Cleanup old/dangling images safely
-            # Only removes dangling images related to this project
+            # 3. Cleanup dangling project images safely
+            # Prevents disk bloat while protecting unrelated system images
             echo "Pruning dangling project images..."
             docker image prune -f --filter "label=com.meoxp.bot.project=meoxp-bot"
             
-            echo "Deployment completed successfully for tag: $DEPLOY_TAG"
+            echo "Deployment completed successfully for tag: $TAG"
