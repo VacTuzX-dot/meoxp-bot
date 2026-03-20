@@ -100,13 +100,15 @@ const loadEvents = (): void => {
 // Start
 (async () => {
   loadCommands();
-  loadEvents();
 
-  // Initialize NoSQL Managers
+  // Initialize NoSQL Managers first to ensure data is ready before events fire
   const { reactionRoleManager } = require("./lib/ReactionRoleManager");
   const { reactionTrackerManager } = require("./lib/ReactionTrackerManager");
   await reactionRoleManager.init();
   await reactionTrackerManager.init();
+
+  // Load events only after managers are ready
+  loadEvents();
 
   if (!process.env.TOKEN) {
     console.error("❌ Error: TOKEN not found in .env");

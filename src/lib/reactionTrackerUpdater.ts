@@ -58,76 +58,73 @@ async function performUpdate(
   const logPrefix = `[ReactionTracker][Msg:${mapping.watchedMessageId}]`;
 
   try {
-    // 1. Validate Client & Channels
-    // If client is missing, we try to grab it from the watchedMessage as a last resort
+    // 1. Resolve Active Client
+    // We prioritize the passed client, then the message's client.
     const activeClient = client || watchedMessage.client;
 
-    if (!activeClient?.channels) {
-      console.error(
-        `${logPrefix} Client or channels manager is undefined. (Passed: ${!!client}, MsgRef: ${!!watchedMessage.client})`,
-      );
+    // 2. Readiness Guard
+    // If the client is not yet ready (e.g. during startup or reconnection),
+    // we skip the update. This is non-critical and prevents "undefined" errors.
+    if (!activeClient || !activeClient.isReady()) {
+      return; // Skip silently as requested to keep logs clean
+    }
+
+    // 3. Channels Manager Guard
+    // In rare cases (startup/reconnect), the channels manager might be briefly undefined
+    if (!activeClient.channels) {
+      // Log the specific warning the user reported if we hit this, though isReady() should prevent it
+      console.warn(`${logPrefix} Client or channels manager is undefined - Skipping update (non-critical)`);
       return;
     }
 
-    // 2. Fetch Bot Channel
+    // 4. Fetch Bot Channel
     const botChannel = await activeClient.channels
       .fetch(mapping.botMessageChannelId)
       .catch(() => null);
+
     if (!botChannel || !botChannel.isTextBased()) {
-      console.warn(
-        `${logPrefix} Bot channel ${mapping.botMessageChannelId} not found or not text-based.`,
-      );
-      return;
+      return; // Safe skip if channel is missing or not text-based
     }
 
     const textChannel = botChannel as TextChannel;
 
-    // 3. Fetch Bot Tracker Message
+    // 5. Fetch Bot Tracker Message
     let botMessage: Message;
     try {
       botMessage = await textChannel.messages.fetch(mapping.botMessageId);
-    } catch (err) {
-      console.log(
-        `${logPrefix} Bot tracker message ${mapping.botMessageId} not found. Likely deleted.`,
-      );
-      return;
+    } catch {
+      return; // Safe skip if message was deleted
     }
 
-    // 4. Ensure Watched Message is latest
+    // 6. Ensure Watched Message is latest
     if (watchedMessage.partial) {
-      await watchedMessage
-        .fetch()
-        .catch((e) =>
-          console.warn(
-            `${logPrefix} Failed to fetch partial watched message:`,
-            e.message,
-          ),
-        );
+      try {
+        await watchedMessage.fetch();
+      } catch {
+        return; // Safe skip if watched message is gone
+      }
     }
 
-    // 5. Find Target Reaction
+    // 7. Find Target Reaction
     let emojiReaction = watchedMessage.reactions.cache.find(
       (r) =>
         r.emoji.id === mapping.emojiIdOrName ||
         r.emoji.name === mapping.emojiIdOrName,
     );
 
-    // 6. Handle Partial Reaction
+    // 8. Handle Partial Reaction
     if (emojiReaction?.partial) {
       try {
         emojiReaction = await emojiReaction.fetch();
-      } catch (e) {
-        console.warn(
-          `${logPrefix} Failed to fetch partial reaction:`,
-          (e as Error).message,
-        );
+      } catch {
+        // Continue with what we have or skip if count is essential
       }
     }
 
     let usersList: string[] = [];
     let realCount = 0;
 
-    // 7. Process Users if reaction exists
+    // 9. Process Users if reaction exists
     if (emojiReaction && emojiReaction.users) {
       try {
         // Fetch up to 100 users to stay beneath API and Embed limits
@@ -136,14 +133,14 @@ async function performUpdate(
 
         realCount = emojiReaction.count - (emojiReaction.me ? 1 : 0);
       } catch (e) {
-        console.error(
-          `${logPrefix} Failed to fetch users for reaction:`,
+        console.warn(
+          `${logPrefix} Could not fetch users for reaction:`,
           (e as Error).message,
         );
       }
     }
 
-    // 8. Construct Embed
+    // 10. Construct Embed
     const displayEmoji =
       mapping.emojiIdOrName.length > 15
         ? `<:emoji:${mapping.emojiIdOrName}>`
@@ -179,7 +176,7 @@ async function performUpdate(
       embed.setDescription(desc);
     }
 
-    // 9. Update the message
+    // 11. Update the message
     await botMessage.edit({ content: "", embeds: [embed] });
   } catch (error) {
     console.error(`${logPrefix} Unexpected update error:`, error);
