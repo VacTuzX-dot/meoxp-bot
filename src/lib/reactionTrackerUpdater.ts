@@ -8,18 +8,18 @@ import { ReactionTrackerMapping, reactionTrackerManager } from "./ReactionTracke
 
 /**
  * Key: botMessageId, Value: NodeJS.Timeout
- * Used for debouncing updates to the same tracker message to save API calls
  */
 const updateQueue = new Map<string, NodeJS.Timeout>();
 
 /**
- * Type guard to check if an object is a valid Discord Client at runtime.
+ * Type guard for Discord Client with required managers.
  */
 function isValidClient(client: any): client is Client {
   return (
     client &&
     typeof client.isReady === "function" &&
-    typeof client.channels?.fetch === "function"
+    client.channels &&
+    typeof client.channels.fetch === "function"
   );
 }
 
@@ -33,25 +33,24 @@ export function debounceUpdateReactionTracker(
   delayMs = 1500,
 ) {
   if (!botMessageId) return;
-  const key = botMessageId;
 
-  if (updateQueue.has(key)) {
-    clearTimeout(updateQueue.get(key)!);
+  if (updateQueue.has(botMessageId)) {
+    clearTimeout(updateQueue.get(botMessageId)!);
   }
 
   const timeout = setTimeout(async () => {
-    updateQueue.delete(key);
+    updateQueue.delete(botMessageId);
     try {
       await performUpdate(client, botMessageId, botMessageChannelId);
     } catch (error) {
       console.error(
-        `[ReactionTracker] Fatal error in debounce timeout for ${key}:`,
+        `[ReactionTracker][BotMsg:${botMessageId}] Fatal error in debounce timeout:`,
         error,
       );
     }
   }, delayMs);
 
-  updateQueue.set(key, timeout);
+  updateQueue.set(botMessageId, timeout);
 }
 
 /**
@@ -66,18 +65,19 @@ async function performUpdate(
 
   try {
     // 1. Resolve and Validate Active Client
-    if (!client || !isValidClient(client) || !client.isReady()) {
+    if (!client || !isValidClient(client)) {
       return; 
     }
-
-    if (!client.channels) {
+    
+    // Ensure client is ready before proceeding with Discord interactions
+    if (!client.isReady()) {
       return;
     }
 
     // 2. Fetch all mappings for this bot message
     const mappings = reactionTrackerManager.getMappingsByBotMessageId(botMessageId);
-    if (mappings.length === 0) {
-      return; // No tracers left for this message
+    if (!mappings || mappings.length === 0) {
+      return;
     }
 
     // 3. Fetch Bot Channel
@@ -95,7 +95,7 @@ async function performUpdate(
     let botMessage: Message;
     try {
       botMessage = await textChannel.messages.fetch(botMessageId);
-    } catch {
+    } catch (err) {
       return; // Safe skip if message was deleted
     }
 
@@ -104,7 +104,6 @@ async function performUpdate(
     // 5. Process each mapping to build embeds
     for (const mapping of mappings) {
       try {
-        // Fetch watched channel
         const watchedChannel = await client.channels.fetch(mapping.channelId).catch(() => null);
         if (!watchedChannel || !watchedChannel.isTextBased()) continue;
 
@@ -112,7 +111,6 @@ async function performUpdate(
         const watchedMessage = await watchedTextChannel.messages.fetch(mapping.watchedMessageId).catch(() => null);
 
         if (!watchedMessage) {
-          // If message is deleted, we could show a warning/error in the embed or just skip
           const errorEmbed = new EmbedBuilder()
             .setTitle(`คนที่กด ?`)
             .setColor("Red")
@@ -121,28 +119,29 @@ async function performUpdate(
           continue;
         }
 
-        // Find Target Reaction
-        if (!watchedMessage.reactions) continue;
-
-        let emojiReaction = watchedMessage.reactions.cache.find(
-          (r) =>
-            r.emoji.id === mapping.emojiIdOrName ||
-            r.emoji.name === mapping.emojiIdOrName,
-        );
+        // Find Target Reaction using resolve() for better reliability
+        let emojiReaction = watchedMessage.reactions.resolve(mapping.emojiIdOrName);
 
         if (emojiReaction?.partial) {
           try {
             emojiReaction = await emojiReaction.fetch();
-          } catch { }
+          } catch (e) {
+            console.warn(`${logPrefix} Partial reaction fetch failed for ${mapping.emojiIdOrName}`);
+          }
         }
 
         let usersList: string[] = [];
         let realCount = 0;
 
-        if (emojiReaction && emojiReaction.users) {
+        if (emojiReaction) {
           try {
+            // Fetch users (up to 100)
             const users = await emojiReaction.users.fetch({ limit: 100 });
-            usersList = users.filter((u) => !u.bot).map((u) => `<@${u.id}>`);
+            usersList = [...users.values()]
+              .filter((u) => !u.bot)
+              .map((u) => `<@${u.id}>`);
+            
+            // Re-fetch reaction to get latest count after potential user fetch
             realCount = emojiReaction.count - (emojiReaction.me ? 1 : 0);
           } catch (e) {
             console.warn(`${logPrefix} Could not fetch users for reaction ${mapping.emojiIdOrName}:`, (e as Error).message);
@@ -177,7 +176,7 @@ async function performUpdate(
             }
           }
 
-          if (desc.length > 4000) {
+          if (desc.length > 4050) {
             desc = desc.substring(0, 4000) + "...";
           }
           embed.setDescription(desc);
@@ -190,9 +189,12 @@ async function performUpdate(
 
     // 6. Update the message with all embeds
     if (embeds.length > 0) {
+      // Comparison check to avoid unnecessary edits if content is identical? 
+      // For now, simpler to just edit as the data is likely changed.
       await botMessage.edit({ content: "", embeds: embeds });
     }
   } catch (error) {
     console.error(`${logPrefix} Unexpected update error:`, error);
   }
 }
+
