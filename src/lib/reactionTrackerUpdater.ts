@@ -3,6 +3,7 @@ import {
   EmbedBuilder,
   TextChannel,
   Message,
+  Collection,
 } from "discord.js";
 import { ReactionTrackerMapping, reactionTrackerManager } from "./ReactionTrackerManager";
 
@@ -12,27 +13,37 @@ import { ReactionTrackerMapping, reactionTrackerManager } from "./ReactionTracke
 const updateQueue = new Map<string, NodeJS.Timeout>();
 
 /**
- * Type guard for Discord Client with required managers.
+ * Strict type guard for Discord Client with required runtime properties.
+ * Checks both instanceof and essential runtime properties to ensure
+ * the object is a genuine Discord.js Client instance.
  */
-function isValidClient(client: any): client is Client {
-  return (
-    client &&
-    typeof client.isReady === "function" &&
-    client.channels &&
-    typeof client.channels.fetch === "function"
-  );
+function isValidClient(client: unknown): client is Client {
+  if (!client || typeof client !== "object") return false;
+  if (!(client instanceof Client)) return false;
+
+  // Runtime property checks to ensure genuine Discord.js Client
+  const clientObj = client as unknown as Record<string, unknown>;
+  if (typeof clientObj.isReady !== "function") return false;
+  if (!clientObj.channels || !(clientObj.channels instanceof Collection)) return false;
+
+  return true;
 }
 
 /**
  * Debounces a tracker update to avoid hitting rate limits.
+ * Only accepts a genuine Discord.js Client instance.
  */
 export function debounceUpdateReactionTracker(
-  client: Client | null | undefined,
+  client: Client,
   botMessageId: string,
   botMessageChannelId: string,
   delayMs = 1500,
 ) {
   if (!botMessageId) return;
+  if (!client || !isValidClient(client)) {
+    console.warn(`[ReactionTracker] debounceUpdateReactionTracker called with invalid client. Skipping.`);
+    return;
+  }
 
   if (updateQueue.has(botMessageId)) {
     clearTimeout(updateQueue.get(botMessageId)!);
@@ -56,9 +67,10 @@ export function debounceUpdateReactionTracker(
 
 /**
  * Performs the actual update of the tracker message.
+ * Requires a genuine Discord.js Client instance - no null/undefined allowed.
  */
 async function performUpdate(
-  client: Client | null | undefined,
+  client: Client,
   botMessageId: string,
   botMessageChannelId: string,
 ) {
@@ -67,11 +79,21 @@ async function performUpdate(
 
   try {
     // 1. Resolve and Validate Active Client
+    // Strict runtime guard: verify object exists, is Client instance, and has required methods/properties
     if (!client || !isValidClient(client)) {
-      console.log(`[Debug #9] [Stage: client validity check] Invalid client! isValidClient: ${isValidClient(client)}`);
-      return; 
+      console.log(`[Debug #9] [Stage: client validity check] Invalid client! isValidClient: false`);
+      if (client) {
+         console.warn(`[Debug #9] --- INVALID CLIENT SHAPE DUMP ---`);
+         console.warn(`[Debug #9] Type: ${typeof client}`);
+         console.warn(`[Debug #9] Constructor: ${(client as Record<string, unknown>).constructor?.name}`);
+         console.warn(`[Debug #9] Keys:`, Object.keys(client).slice(0, 15));
+         console.warn(`[Debug #9] Is it a Discord Reaction? ${'message' in (client as Record<string, unknown>) && 'emoji' in (client as Record<string, unknown>)}`);
+         console.warn(`[Debug #9] Is it a Discord Message? ${'channel' in (client as Record<string, unknown>) && 'author' in (client as Record<string, unknown>)}`);
+         console.warn(`[Debug #9] ---------------------------------`);
+      }
+      return;
     }
-    
+
     // Ensure client is ready before proceeding with Discord interactions
     if (!client.isReady()) {
       console.log(`[Debug #9] [Stage: client validity check] Client NOT ready!`);

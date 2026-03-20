@@ -21,7 +21,7 @@ export interface Command {
   ) => Promise<void> | void;
 }
 
-// Event interface
+// Event interface - the last argument is always the ExtendedClient
 export interface Event {
   name: string;
   once?: boolean;
