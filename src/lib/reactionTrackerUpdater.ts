@@ -23,10 +23,13 @@ export function debounceUpdateReactionTracker(
     clearTimeout(updateQueue.get(key)!);
   }
 
+  // Use the message's client as fallback if the passed one is invalid
+  const activeClient = client || watchedMessage.client;
+
   const timeout = setTimeout(async () => {
     updateQueue.delete(key);
     try {
-      await performUpdate(client, mapping, watchedMessage);
+      await performUpdate(activeClient, mapping, watchedMessage);
     } catch (error) {
       console.error(`[ReactionTracker] Fatal error in debounce timeout for ${key}:`, error);
     }
@@ -43,13 +46,16 @@ async function performUpdate(client: Client, mapping: ReactionTrackerMapping, wa
 
   try {
     // 1. Validate Client & Channels
-    if (!client?.channels) {
-      console.error(`${logPrefix} Client or channels manager is undefined.`);
+    // If client is missing, we try to grab it from the watchedMessage as a last resort
+    const activeClient = client || watchedMessage.client;
+
+    if (!activeClient?.channels) {
+      console.error(`${logPrefix} Client or channels manager is undefined. (Passed: ${!!client}, MsgRef: ${!!watchedMessage.client})`);
       return;
     }
 
     // 2. Fetch Bot Channel
-    const botChannel = await client.channels.fetch(mapping.botMessageChannelId).catch(() => null);
+    const botChannel = await activeClient.channels.fetch(mapping.botMessageChannelId).catch(() => null);
     if (!botChannel || !botChannel.isTextBased()) {
       console.warn(`${logPrefix} Bot channel ${mapping.botMessageChannelId} not found or not text-based.`);
       return;

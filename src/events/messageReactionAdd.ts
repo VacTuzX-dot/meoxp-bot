@@ -1,4 +1,4 @@
-import { Events, MessageReaction, User, PartialMessageReaction, PartialUser } from "discord.js";
+import { Events, MessageReaction, User, PartialMessageReaction, PartialUser, Message } from "discord.js";
 import { Event, ExtendedClient } from "../types";
 import { reactionRoleManager } from "../lib/ReactionRoleManager";
 import { reactionTrackerManager } from "../lib/ReactionTrackerManager";
@@ -44,10 +44,9 @@ const event: Event = {
     const emojiIdOrName = reaction.emoji.id || reaction.emoji.name;
     if (!emojiIdOrName) return;
 
-    // --- REACTION TRACKER CHECK ---
     const trackerMapping = reactionTrackerManager.getMapping(reaction.message.id, emojiIdOrName);
     if (trackerMapping && trackerMapping.guildId === reaction.message.guild.id) {
-      debounceUpdateReactionTracker(client as any, trackerMapping, reaction.message as any);
+      debounceUpdateReactionTracker(client, trackerMapping, reaction.message as Message);
     }
     // ------------------------------
 

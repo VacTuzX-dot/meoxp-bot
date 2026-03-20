@@ -1,4 +1,4 @@
-import { Events, MessageReaction, User, PartialMessageReaction, PartialUser } from "discord.js";
+import { Events, MessageReaction, User, PartialMessageReaction, PartialUser, Message } from "discord.js";
 import { Event, ExtendedClient } from "../types";
 import { reactionTrackerManager } from "../lib/ReactionTrackerManager";
 import { debounceUpdateReactionTracker } from "../lib/reactionTrackerUpdater";
@@ -47,7 +47,7 @@ const event: Event = {
     // We explicitly SKIP ReactionRole logic here because the user requested that roles should NOT be removed on unreact.
     const trackerMapping = reactionTrackerManager.getMapping(reaction.message.id, emojiIdOrName);
     if (trackerMapping && trackerMapping.guildId === reaction.message.guild.id) {
-      debounceUpdateReactionTracker(client as any, trackerMapping, reaction.message as any);
+      debounceUpdateReactionTracker(client, trackerMapping, reaction.message as Message);
     }
   },
 };
