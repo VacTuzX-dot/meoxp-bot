@@ -24,7 +24,7 @@ jobs:
           version: 9 # adjust to specific pnpm version if needed
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build and Typecheck
         run: pnpm run build
