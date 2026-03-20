@@ -1,11 +1,10 @@
 import { Events, MessageReaction, User, PartialMessageReaction, PartialUser } from "discord.js";
 import { Event, ExtendedClient } from "../types";
-import { reactionRoleManager } from "../lib/ReactionRoleManager";
 import { reactionTrackerManager } from "../lib/ReactionTrackerManager";
 import { debounceUpdateReactionTracker } from "../lib/reactionTrackerUpdater";
 
 const event: Event = {
-  name: Events.MessageReactionAdd,
+  name: Events.MessageReactionRemove,
   async execute(
     reaction: MessageReaction | PartialMessageReaction,
     user: User | PartialUser,
@@ -48,31 +47,6 @@ const event: Event = {
     const trackerMapping = reactionTrackerManager.getMapping(reaction.message.id, emojiIdOrName);
     if (trackerMapping && trackerMapping.guildId === reaction.message.guild.id) {
       debounceUpdateReactionTracker(client as any, trackerMapping, reaction.message as any);
-    }
-    // ------------------------------
-
-    const mapping = reactionRoleManager.getMapping(reaction.message.id, emojiIdOrName);
-    if (!mapping) return;
-
-    if (mapping.guildId !== reaction.message.guild.id) return;
-
-    try {
-      const role = await reaction.message.guild.roles.fetch(mapping.roleId);
-      if (!role) {
-        console.log(`[ReactionRole] Role ${mapping.roleId} not found in guild ${mapping.guildId}.`);
-        return;
-      }
-
-      const member = await reaction.message.guild.members.fetch(user.id);
-      if (!member) return;
-
-      if (member.roles.cache.has(role.id)) return;
-
-      await member.roles.add(role);
-      console.log(`✅ [ReactionRole] Assigned role ${role.name} to user ${user.username}.`);
-      
-    } catch (error: any) {
-      console.error(`❌ [ReactionRole] Failed to assign role ${mapping.roleId} to user ${user.username}: ${error.message}`);
     }
   },
 };

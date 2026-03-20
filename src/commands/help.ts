@@ -16,6 +16,9 @@ const categories: Record<
     title: "🎀 เมนูช่วยเหลือค่ะนายท่าน",
     description:
       "ยินดีต้อนรับค่ะ~ เลือกหมวดหมู่จากเมนูด้านล่างเพื่อดูคำสั่งนะคะ 💕",
+    fields: [
+      { name: "!!help", value: "เปิดหน้าต่างเมนูหมวดหมู่คำสั่ง 📖", inline: false }
+    ],
   },
   music: {
     title: "🎵 คำสั่งเพลง",
@@ -44,11 +47,13 @@ const categories: Record<
     ],
   },
   admin: {
-    title: "⚙️ คำสั่ง Admin",
-    description: "คำสั่งสำหรับ Admin ค่ะนายท่าน~ (เฉพาะผู้ดูแล)",
+    title: "⚙️ คำสั่ง Admin & Setup",
+    description: "คำสั่งสำหรับแอดมินและการตั้งค่าระบบค่ะนายท่าน~ (เฉพาะผู้ดูแล)",
     fields: [
-      { name: "!!purge <จำนวน>", value: "ลบข้อความ 🗑️", inline: true },
-      { name: "!!status", value: "สถานะบอท 📊", inline: true },
+      { name: "!!purge <จำนวน>", value: "ลบข้อความในโฟลเดอร์แชท 🗑️", inline: true },
+      { name: "!!status", value: "ดูสถานะเซิร์ฟเวอร์บอท 📊", inline: true },
+      { name: "!!rr <add/remove/list>", value: "ระบบมอบยศจากอีโมจิ (Reaction Role) 🎭", inline: false },
+      { name: "!!rrname <setup/add/remove/list>", value: "ระบบนับและลิสต์ผู้ใช้อีโมจิ (Reaction Tracker) 📝", inline: false }
     ],
   },
 };
@@ -70,7 +75,7 @@ const command: Command = {
           { label: "🏠 หน้าแรก", value: "home" },
           { label: "🎵 เพลง", value: "music" },
           { label: "🗣️ TTS", value: "tts" },
-          { label: "⚙️ Admin", value: "admin" },
+          { label: "⚙️ Admin & Setup", value: "admin" },
         ])
     );
 
