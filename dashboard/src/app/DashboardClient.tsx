@@ -1,5 +1,7 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
 import io from "socket.io-client";
 import { 
@@ -17,11 +19,85 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+interface BotStatus {
+  online: boolean;
+  lavalink: boolean;
+  uptime: string;
+  ping: number;
+  bot: {
+    username: string;
+    avatar: string | null;
+  };
+}
+
+interface BotStats {
+  guilds: number;
+  users: number;
+  queues: {
+    total: number;
+    playing: number;
+  };
+}
+
+interface QueueItem {
+  guildId: string;
+  guildName: string;
+  nowPlaying: string | null;
+  queueLength: number;
+  loopMode: number;
+}
+
+interface QueuesResponse {
+  queues: QueueItem[];
+}
+
+interface GuildUpdatePayload {
+  guildId: string;
+  guildName?: string;
+  nowPlaying?: {
+    title?: string | null;
+  } | null;
+  totalSongs: number;
+  loopMode: number;
+}
+
+interface StatCardProps {
+  title: string;
+  value: string | number | null | undefined;
+  icon: LucideIcon;
+  description: string;
+  trend: ReactNode;
+}
+
 interface DashboardClientProps {
-  initialStatus: any;
-  initialStats: any;
-  initialQueues: any;
+  initialStatus: BotStatus | null;
+  initialStats: BotStats | null;
+  initialQueues: QueuesResponse | null;
   apiUrl: string;
+}
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  description,
+  trend,
+}: StatCardProps) {
+  return (
+    <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          {title}
+        </CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value ?? "--"}</div>
+        <p className="sr-only">{description}</p>
+        <div className="mt-1">{trend}</div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function DashboardClient({
@@ -38,12 +114,12 @@ export default function DashboardClient({
   useEffect(() => {
     const socket = io(apiUrl);
 
-    socket.on("guildUpdate", (data: any) => {
-      setQueuesData((prev: any) => {
-        const newQueues = [...(prev?.queues || [])];
-        const index = newQueues.findIndex((q: any) => q.guildId === data.guildId);
+    socket.on("guildUpdate", (data: GuildUpdatePayload) => {
+      setQueuesData((prev) => {
+        const newQueues = [...(prev?.queues ?? [])];
+        const index = newQueues.findIndex((q) => q.guildId === data.guildId);
 
-        const queueItem = {
+        const queueItem: QueueItem = {
           guildId: data.guildId,
           guildName: data.guildName || "Unknown",
           nowPlaying: data.nowPlaying?.title || null,
@@ -84,24 +160,6 @@ export default function DashboardClient({
     };
   }, [apiUrl]);
 
-  const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
-    <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-          {title}
-        </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value ?? "--"}</div>
-        <p className="sr-only">{description}</p>
-        <div className="mt-1">
-          {trend}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6 md:p-10 space-y-8 max-w-7xl mx-auto">
@@ -113,6 +171,9 @@ export default function DashboardClient({
       </div>
     );
   }
+
+  const pingValue = status?.ping ?? 0;
+  const queueItems = queuesData?.queues ?? [];
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
@@ -158,6 +219,7 @@ export default function DashboardClient({
             title="Lavalink" 
             value={status?.lavalink ? "Ready" : "Offline"} 
             icon={Wifi}
+            description="Current Lavalink service availability"
             trend={
               <Badge variant={status?.lavalink ? "success" : "destructive"} className="px-1.5 py-0 text-[10px]">
                 {status?.lavalink ? "Operational" : "Disconnected"}
@@ -168,18 +230,21 @@ export default function DashboardClient({
             title="Uptime" 
             value={status?.uptime} 
             icon={Clock}
+            description="Bot uptime since the last restart"
             trend={<span className="text-[10px] text-muted-foreground font-medium">SINCE LAST RESTART</span>}
           />
           <StatCard 
             title="Servers" 
             value={stats?.guilds?.toLocaleString()} 
             icon={Server}
+            description="Total Discord servers connected to the bot"
             trend={<span className="text-[10px] text-muted-foreground font-medium">TOTAL GUILDS CONNECTED</span>}
           />
           <StatCard 
             title="Users" 
             value={stats?.users?.toLocaleString()} 
             icon={Users}
+            description="Estimated total member reach across connected servers"
             trend={<span className="text-[10px] text-muted-foreground font-medium">TOTAL MEMBER REACH</span>}
           />
         </div>
@@ -196,15 +261,15 @@ export default function DashboardClient({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-end justify-between">
-                <div className="text-4xl font-bold tracking-tighter">{status?.ping || 0}<span className="text-xl font-normal text-muted-foreground ml-1">ms</span></div>
-                <Badge variant={status?.ping < 100 ? "success" : status?.ping < 300 ? "secondary" : "destructive"} className="mb-1">
-                  {status?.ping < 100 ? "Excellent" : status?.ping < 300 ? "Good" : "High"}
+                <div className="text-4xl font-bold tracking-tighter">{pingValue}<span className="text-xl font-normal text-muted-foreground ml-1">ms</span></div>
+                <Badge variant={pingValue < 100 ? "success" : pingValue < 300 ? "secondary" : "destructive"} className="mb-1">
+                  {pingValue < 100 ? "Excellent" : pingValue < 300 ? "Good" : "High"}
                 </Badge>
               </div>
               <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full transition-all duration-500 ${status?.ping < 100 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
-                  style={{ width: `${Math.min(100, (status?.ping || 0) / 5)}%` }}
+                  className={`h-full transition-all duration-500 ${pingValue < 100 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                  style={{ width: `${Math.min(100, pingValue / 5)}%` }}
                 />
               </div>
             </CardContent>
@@ -239,12 +304,12 @@ export default function DashboardClient({
               <ListMusic className="h-5 w-5 text-muted-foreground" />
               Active Queues Summary
             </CardTitle>
-            <CardDescription>A public overview of what's currently being played across servers.</CardDescription>
+            <CardDescription>A public overview of what&apos;s currently being played across servers.</CardDescription>
           </CardHeader>
           <CardContent>
-            {queuesData?.queues?.length > 0 ? (
+            {queueItems.length > 0 ? (
               <div className="divide-y divide-border/40">
-                {queuesData.queues.map((q: any) => (
+                {queueItems.map((q) => (
                   <div key={q.guildId} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
