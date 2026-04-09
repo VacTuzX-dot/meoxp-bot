@@ -5,6 +5,15 @@ import { Server } from "socket.io";
 import { ExtendedClient } from "./types";
 import { isLavalinkReady } from "./lib/ShoukakuManager";
 
+const API_SECURITY_HEADERS = {
+  "Content-Security-Policy":
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "DENY",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "X-Content-Type-Options": "nosniff",
+} as const;
+
 export function startApiServer(
   client: ExtendedClient,
   port: number = 4000,
@@ -20,6 +29,14 @@ export function startApiServer(
 
   client.io = io;
 
+  app.disable("x-powered-by");
+  app.use((req, res, next) => {
+    for (const [header, value] of Object.entries(API_SECURITY_HEADERS)) {
+      res.setHeader(header, value);
+    }
+
+    next();
+  });
   app.use(cors());
   app.use(express.json());
 
