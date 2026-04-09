@@ -7,7 +7,7 @@ import { isLavalinkReady } from "./lib/ShoukakuManager";
 
 const API_SECURITY_HEADERS = {
   "Content-Security-Policy":
-    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+    "default-src 'none'; script-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
   "Cross-Origin-Resource-Policy": "same-origin",

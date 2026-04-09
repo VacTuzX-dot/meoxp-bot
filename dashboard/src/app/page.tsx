@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import DashboardClient from "./DashboardClient";
 
 async function getBotStatus() {
@@ -37,6 +38,8 @@ async function getQueues() {
 }
 
 export default async function Dashboard() {
+  await connection();
+
   const [status, stats, queuesData] = await Promise.all([
     getBotStatus(),
     getBotStats(),
