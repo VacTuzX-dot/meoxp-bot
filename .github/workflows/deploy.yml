@@ -46,6 +46,33 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
+      - name: Verify runner DNS connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for host in github.com api.github.com pkgs.tailscale.com; do
+            resolved=false
+
+            for attempt in {1..5}; do
+              if getent ahosts "$host" >/dev/null 2>&1; then
+                echo "Resolved $host on attempt $attempt"
+                resolved=true
+                break
+              fi
+
+              echo "Attempt $attempt/5 failed to resolve $host; retrying in 5s..."
+              sleep 5
+            done
+
+            if [ "$resolved" != true ]; then
+              echo "::error::Failed to resolve $host after 5 attempts."
+              echo "Current resolver configuration:"
+              cat /etc/resolv.conf || true
+              exit 1
+            fi
+          done
+
       - name: Connect to Tailnet
         uses: tailscale/github-action@v4
         with:
