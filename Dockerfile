@@ -5,6 +5,9 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
+# Git hook setup is for local development only and should not run in image builds.
+ENV SKIP_GIT_HOOKS=1
+
 COPY package.json pnpm-lock.yaml* ./
 
 # Install all dependencies (including dev for build)
