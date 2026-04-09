@@ -25,29 +25,37 @@ function toWebSocketOrigin(origin: string) {
   return origin;
 }
 
-function buildConnectSources() {
-  const apiOrigins = Array.from(
+function buildConnectSources(isDev: boolean) {
+  const browserVisibleOrigins = Array.from(
     new Set(
       [
-        getOrigin(process.env.BOT_API_URL),
         getOrigin(process.env.NEXT_PUBLIC_BOT_API_URL),
-        process.env.NODE_ENV === "development" ? "http://localhost:4000" : null,
+        isDev ? getOrigin(process.env.BOT_API_URL) : null,
+        isDev ? "http://localhost:4000" : null,
       ].filter((value): value is string => Boolean(value)),
     ),
   );
 
+  const secureOrigins = browserVisibleOrigins.filter(
+    (origin) => isDev || origin.startsWith("https://"),
+  );
+
+  const webSocketOrigins = secureOrigins
+    .map(toWebSocketOrigin)
+    .filter((origin) => isDev || origin.startsWith("wss://"));
+
   return Array.from(
     new Set([
       "'self'",
-      ...apiOrigins,
-      ...apiOrigins.map(toWebSocketOrigin),
+      ...secureOrigins,
+      ...webSocketOrigins,
     ]),
   );
 }
 
 function buildCsp(nonce: string) {
   const isDev = process.env.NODE_ENV === "development";
-  const connectSources = buildConnectSources();
+  const connectSources = buildConnectSources(isDev);
 
   return [
     "default-src 'self'",
