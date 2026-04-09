@@ -58,7 +58,7 @@ function buildCsp(nonce: string) {
   const connectSources = buildConnectSources(isDev);
 
   return [
-    "default-src 'self'",
+    "default-src 'none'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
     "img-src 'self' data: blob: https://github.com https://cdn.discordapp.com https://media.discordapp.net",
