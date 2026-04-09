@@ -9,6 +9,7 @@ RUN npm install -g pnpm
 ENV SKIP_GIT_HOOKS=1
 
 COPY package.json pnpm-lock.yaml* ./
+COPY scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 
 # Install all dependencies (including dev for build)
 RUN pnpm install --frozen-lockfile || pnpm install
