@@ -18,7 +18,7 @@ const command: Command = {
 
     const action = args[0]?.toLowerCase();
 
-    if (!action || ["setup", "remove", "list"].indexOf(action) === -1) {
+    if (!action) {
       message.reply(
         "❌ กรุณาระบุรูปคำสั่งให้ถูกต้อง:\n" +
           "`!!setup <@role>`\n" +
