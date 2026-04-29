@@ -44,7 +44,7 @@ const loadCommands = (): void => {
     const commandFiles = readdirSync(commandsPath).filter(
       (file) =>
         (file.endsWith(".ts") || file.endsWith(".js")) &&
-        !file.endsWith(".d.ts")
+        !file.endsWith(".d.ts"),
     );
 
     for (const file of commandFiles) {
@@ -76,7 +76,7 @@ const loadEvents = (): void => {
     const eventFiles = readdirSync(eventsPath).filter(
       (file) =>
         (file.endsWith(".ts") || file.endsWith(".js")) &&
-        !file.endsWith(".d.ts")
+        !file.endsWith(".d.ts"),
     );
 
     for (const file of eventFiles) {
@@ -105,13 +105,22 @@ const loadEvents = (): void => {
   // Initialize NoSQL Managers first to ensure data is ready before events fire
   const { reactionRoleManager } = require("./lib/ReactionRoleManager");
   const { reactionTrackerManager } = require("./lib/ReactionTrackerManager");
+  const { autoRoleManager } = require("./lib/AutoRoleManager");
   try {
-    console.log("[Debug #15] [Stage: restart reload] Initializing NoSQL managers...");
+    console.log(
+      "[Debug #15] [Stage: restart reload] Initializing NoSQL managers...",
+    );
     await reactionRoleManager.init();
     await reactionTrackerManager.init();
-    console.log("[Debug #15] [Stage: restart reload] NoSQL managers initialized successfully.");
+    await autoRoleManager.init();
+    console.log(
+      "[Debug #15] [Stage: restart reload] NoSQL managers initialized successfully.",
+    );
   } catch (err) {
-    console.error("[Debug #15] [Stage: restart reload] Failed to init managers:", err);
+    console.error(
+      "[Debug #15] [Stage: restart reload] Failed to init managers:",
+      err,
+    );
   }
 
   // Load events only after managers are ready
@@ -124,9 +133,11 @@ const loadEvents = (): void => {
 
   console.log("🚀 Starting bot...");
   await client.login(process.env.TOKEN);
-  
+
   // Debug #9 client validity check at startup
-  console.log(`[Debug #9] [Stage: client validity check] Is ready? ${client.isReady()}, Channels cache size: ${client.channels.cache.size}`);
+  console.log(
+    `[Debug #9] [Stage: client validity check] Is ready? ${client.isReady()}, Channels cache size: ${client.channels.cache.size}`,
+  );
 
   // Start API server for dashboard
   startApiServer(client, 4000);
