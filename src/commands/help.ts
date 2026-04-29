@@ -1,15 +1,14 @@
+import { Message } from "discord.js";
+import { Command, ExtendedClient } from "../types";
 import {
-  Message,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  import { Message } from "discord.js";
-> = {
-  import {
-    attachHelpCollector,
-    createHelpEmbed,
-    createHelpRow,
-  } from "../lib/helpMenu";
+  attachHelpCollector,
+  createHelpEmbed,
+  createHelpRow,
+} from "../lib/helpMenu";
+
+const command: Command = {
+  name: "help",
+  description: "Show the bot help menu",
   async execute(
     message: Message,
     args: string[],
