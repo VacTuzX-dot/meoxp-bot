@@ -8,23 +8,18 @@ interface GoldPriceData {
   time: string;
 }
 
-interface MtsGoldApiEntry {
-  date: string;
-  time: string;
-  bhtBuy: string;
-  bhtSell: string;
-  barBuy: string;
-  barSell: string;
-  comment: string;
+interface GoldTradersApiResponse {
+  goldPriceID: number;
+  asTime: string;
+  bL_BuyPrice: number;
+  bL_SellPrice: number;
+  priceChangeFromPrevRow: number;
+  priceChangeFromPrevDayLast: number;
 }
 
-interface MtsGoldApiResponse {
-  Stat: number;
-  DS: MtsGoldApiEntry[];
-}
-
-// สมาคมค้าทองคำ — reference price used by MTS Gold
-const GOLD_API_URL = "https://www.goldtraders.or.th/UpdateGoldTraders.aspx";
+// สมาคมค้าทองคำ — migrated to Next.js; old .aspx endpoint now returns HTML
+const GOLD_API_URL =
+  "https://www.goldtraders.or.th/api/GoldPrices/Latest?readjson=false";
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 let lastPrice: GoldPriceData | null = null;
@@ -38,15 +33,24 @@ async function fetchGoldPrice(): Promise<GoldPriceData | null> {
     });
     if (!res.ok) return null;
 
-    const data = (await res.json()) as MtsGoldApiResponse;
-    if (data.Stat !== 1 || !data.DS?.length) return null;
+    const data = (await res.json()) as GoldTradersApiResponse;
+    if (!data?.bL_BuyPrice || !data?.bL_SellPrice) return null;
 
-    const entry = data.DS[0];
-    const buy = parseInt(entry.bhtBuy, 10);
-    const sell = parseInt(entry.bhtSell, 10);
-    if (isNaN(buy) || isNaN(sell)) return null;
+    const buy = Math.round(data.bL_BuyPrice);
+    const sell = Math.round(data.bL_SellPrice);
+    const dt = new Date(data.asTime);
+    const date = dt.toLocaleDateString("th-TH", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const time = dt.toLocaleTimeString("th-TH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
 
-    return { buy, sell, date: entry.date, time: entry.time };
+    return { buy, sell, date, time };
   } catch (err) {
     console.error("[GoldPriceFetcher] fetch error:", err);
     return null;
