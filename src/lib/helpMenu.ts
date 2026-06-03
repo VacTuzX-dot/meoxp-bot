@@ -62,7 +62,14 @@ export const helpCategories: Record<
       },
       {
         name: "Auto role",
-        value: "`!!setup <role>` / `!!setup remove` / `!!setup list`",
+        value: "`!!setup <role>` / `!!setup remove` / `!!setup list`\n`/setup set` / `/setup remove` / `/setup list`",
+        inline: false,
+      },
+      {
+        name: "Gold price alert (ราคาทอง 96.5%)",
+        value:
+          "`!!setupgold set <#channel> [@role]` / `!!setupgold remove` / `!!setupgold status`\n" +
+          "`/setupgold set` / `/setupgold remove` / `/setupgold status`",
         inline: false,
       },
       {
