@@ -1,6 +1,7 @@
 import { Events, ActivityType, PresenceUpdateStatus } from "discord.js";
 import { ExtendedClient, defineEvent } from "../types";
 import { registerSlashCommands } from "../lib/slashCommands";
+import { startGoldPricePoller } from "../lib/GoldPriceFetcher";
 
 const event = defineEvent({
   name: Events.ClientReady,
@@ -10,6 +11,7 @@ const event = defineEvent({
     console.log(`✅ Logged in as ${client.user?.tag}`);
 
     await registerSlashCommands(client);
+    startGoldPricePoller(client);
 
     // Set initial status to idle (not in any voice channel)
     client.user?.setPresence({

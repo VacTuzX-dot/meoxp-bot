@@ -1,4 +1,5 @@
 import {
+  ChannelType,
   ChatInputCommandInteraction,
   Client,
   Message,
@@ -7,6 +8,8 @@ import {
 } from "discord.js";
 import { ExtendedClient } from "../types";
 import { autoRoleManager } from "./AutoRoleManager";
+import { goldPriceManager } from "./GoldPriceManager";
+import { fetchGoldPrice } from "./GoldPriceFetcher";
 import {
   attachHelpCollector,
   createHelpEmbed,
@@ -37,6 +40,32 @@ export function getSlashCommandDefinitions() {
       )
       .addSubcommand((subcommand) =>
         subcommand.setName("list").setDescription("Show current auto role"),
+      ),
+    new SlashCommandBuilder()
+      .setName("setupgold")
+      .setDescription("ตั้งค่าแจ้งเตือนราคาทองคำ 96.5% เมื่อราคาเปลี่ยนแปลง")
+      .addSubcommand((subcommand) =>
+        subcommand
+          .setName("set")
+          .setDescription("ตั้งค่าช่องทางรับแจ้งเตือนราคาทอง")
+          .addChannelOption((option) =>
+            option
+              .setName("channel")
+              .setDescription("ช่องที่จะส่งการแจ้งเตือนราคาทอง")
+              .setRequired(true),
+          )
+          .addRoleOption((option) =>
+            option
+              .setName("role")
+              .setDescription("ยศที่จะถูก mention เมื่อราคาเปลี่ยน (optional)")
+              .setRequired(false),
+          ),
+      )
+      .addSubcommand((subcommand) =>
+        subcommand.setName("remove").setDescription("ยกเลิกการแจ้งเตือนราคาทอง"),
+      )
+      .addSubcommand((subcommand) =>
+        subcommand.setName("status").setDescription("ดูการตั้งค่าแจ้งเตือนราคาทองปัจจุบัน"),
       ),
   ];
 }
@@ -146,6 +175,86 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
   });
 }
 
+async function handleGoldSetupSlash(
+  interaction: ChatInputCommandInteraction,
+) {
+  if (!interaction.guild) return;
+
+  if (
+    !interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)
+  ) {
+    await interaction.reply({
+      content: "❌ คุณไม่มีสิทธิ์ (Administrator) ในการใช้คำสั่งนี้ค่ะ",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === "remove") {
+    const success = await goldPriceManager.removeConfig(interaction.guild.id);
+    await interaction.reply({
+      content: success
+        ? "✅ ยกเลิกการแจ้งเตือนราคาทองเรียบร้อยแล้วค่ะ"
+        : "ℹ️ เซิร์ฟเวอร์นี้ยังไม่ได้ตั้งค่าการแจ้งเตือนราคาทองไว้",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (subcommand === "status") {
+    const config = goldPriceManager.getConfig(interaction.guild.id);
+    if (!config) {
+      await interaction.reply({
+        content: "ℹ️ ยังไม่ได้ตั้งค่าการแจ้งเตือนราคาทองในเซิร์ฟเวอร์นี้ค่ะ\nใช้ `/setupgold set` เพื่อตั้งค่า",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const price = await fetchGoldPrice();
+    const priceText = price
+      ? `\n\n💰 ราคาปัจจุบัน (96.5%): ซื้อ **${price.buy.toLocaleString("th-TH")}** / ขาย **${price.sell.toLocaleString("th-TH")}** บาท`
+      : "";
+
+    const roleText = config.roleId ? `\n📢 Mention: <@&${config.roleId}>` : "";
+    await interaction.editReply({
+      content:
+        `📌 ช่องแจ้งเตือน: <#${config.channelId}>${roleText}${priceText}`,
+    });
+    return;
+  }
+
+  // subcommand === "set"
+  const channel = interaction.options.getChannel("channel", true);
+  const role = interaction.options.getRole("role");
+
+  if (channel.type !== ChannelType.GuildText) {
+    await interaction.reply({
+      content: "❌ กรุณาเลือกช่องข้อความ (Text Channel) เท่านั้นค่ะ",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const success = await goldPriceManager.setConfig({
+    guildId: interaction.guild.id,
+    channelId: channel.id,
+    ...(role ? { roleId: role.id } : {}),
+  });
+
+  const roleText = role ? ` และจะ mention <@&${role.id}>` : "";
+  await interaction.reply({
+    content: success
+      ? `✅ ตั้งค่าแจ้งเตือนราคาทองคำ 96.5% สำเร็จค่ะ\nจะส่งการแจ้งเตือนไปที่ <#${channel.id}>${roleText} เมื่อราคาเปลี่ยนแปลง`
+      : "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลค่ะ",
+    ephemeral: true,
+  });
+}
+
 export async function handleSlashCommand(
   interaction: ChatInputCommandInteraction,
   _client: ExtendedClient,
@@ -157,5 +266,10 @@ export async function handleSlashCommand(
 
   if (interaction.commandName === "setup") {
     await handleAutoRoleSlash(interaction);
+    return;
+  }
+
+  if (interaction.commandName === "setupgold") {
+    await handleGoldSetupSlash(interaction);
   }
 }
