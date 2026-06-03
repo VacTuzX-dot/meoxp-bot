@@ -90,30 +90,25 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -euo pipefail
             cd ~/meoxp-bot
-            # Fetch latest code
-            git pull origin main
-            
-            # Use fixed tag for the project
+
             export TAG=meoxpbot
             echo "Starting deployment for tag: $TAG"
-            
-            # 1. Explicitly build the image first to stabilize tags and minimize downtime
-            echo "Building new project images..."
+
+            git pull origin main
+
+            echo "Building new images..."
             docker compose build
-            
-            # 2. Identify and stop old project containers safely using label filtering
-            echo "Stopping old project containers..."
-            docker ps -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker stop
-            docker ps -a -q --filter "label=com.meoxp.bot.project=meoxp-bot" | xargs -r docker rm
-            
-            # 3. Redeploy with the fixed tag
-            # We retain --force-recreate --build to ensure final state meets expectations perfectly
-            docker compose up -d --force-recreate --build
-            
-            # 4. Cleanup dangling project images safely
-            # Prevents disk bloat while protecting unrelated system images
-            echo "Pruning dangling project images..."
-            docker image prune -f --filter "label=com.meoxp.bot.project=meoxp-bot" --filter "dangling=true"
-            
-            echo "Deployment completed successfully for tag: $TAG"
+
+            echo "Restarting containers..."
+            docker compose down --remove-orphans
+            docker compose up -d
+
+            echo "Pruning dangling images..."
+            docker image prune -f --filter "dangling=true"
+
+            echo "Verifying containers running..."
+            docker compose ps
+
+            echo "Deployment complete for tag: $TAG"
