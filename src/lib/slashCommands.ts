@@ -220,7 +220,9 @@ async function handleGoldSetupSlash(
       ? `\n\n💰 ราคาปัจจุบัน (96.5%): ซื้อ **${price.buy.toLocaleString("th-TH")}** / ขาย **${price.sell.toLocaleString("th-TH")}** บาท`
       : "";
 
-    const roleText = config.roleId ? `\n📢 Mention: <@&${config.roleId}>` : "";
+    const roleText = config.roleId
+      ? `\n📢 Mention: ${config.roleId === "everyone" ? "@everyone" : `<@&${config.roleId}>`}`
+      : "";
     await interaction.editReply({
       content:
         `📌 ช่องแจ้งเตือน: <#${config.channelId}>${roleText}${priceText}`,

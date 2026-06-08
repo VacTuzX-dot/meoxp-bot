@@ -52,7 +52,9 @@ const command: Command = {
       const priceText = price
         ? `\n💰 ราคาปัจจุบัน (96.5%): ซื้อ **${price.buy.toLocaleString("th-TH")}** / ขาย **${price.sell.toLocaleString("th-TH")}** บาท`
         : "";
-      const roleText = config.roleId ? `\n📢 Mention: <@&${config.roleId}>` : "";
+      const roleText = config.roleId
+        ? `\n📢 Mention: ${config.roleId === "everyone" ? "@everyone" : `<@&${config.roleId}>`}`
+        : "";
 
       message.reply(
         `📌 ช่องแจ้งเตือน: <#${config.channelId}>${roleText}${priceText}`,
@@ -81,14 +83,20 @@ const command: Command = {
       let roleId: string | undefined;
       const roleArg = args[2];
       if (roleArg) {
-        const roleIdMatch = roleArg.match(/<@&(\d+)>/);
-        const rid = roleIdMatch ? roleIdMatch[1] : roleArg;
-        const role = message.guild.roles.cache.get(rid);
-        if (!role) {
-          message.reply("❌ ไม่พบยศดังกล่าวค่ะ");
-          return;
+        const isEveryone =
+          roleArg === "@everyone" || roleArg === "everyone";
+        if (isEveryone) {
+          roleId = "everyone";
+        } else {
+          const roleIdMatch = roleArg.match(/<@&(\d+)>/);
+          const rid = roleIdMatch ? roleIdMatch[1] : roleArg;
+          const role = message.guild.roles.cache.get(rid);
+          if (!role) {
+            message.reply("❌ ไม่พบยศดังกล่าวค่ะ");
+            return;
+          }
+          roleId = role.id;
         }
-        roleId = role.id;
       }
 
       const success = await goldPriceManager.setConfig({
@@ -97,7 +105,12 @@ const command: Command = {
         ...(roleId ? { roleId } : {}),
       });
 
-      const roleText = roleId ? ` และจะ mention <@&${roleId}>` : "";
+      const roleText =
+        roleId === "everyone"
+          ? " และจะ mention @everyone"
+          : roleId
+            ? ` และจะ mention <@&${roleId}>`
+            : "";
       message.reply(
         success
           ? `✅ ตั้งค่าแจ้งเตือนราคาทองคำ 96.5% สำเร็จค่ะ\nจะส่งการแจ้งเตือนไปที่ <#${channel.id}>${roleText} เมื่อราคาเปลี่ยนแปลง`

@@ -103,7 +103,12 @@ async function notifyGuilds(
         .catch(() => null);
       if (!channel || !(channel instanceof TextChannel)) continue;
 
-      const content = config.roleId ? `<@&${config.roleId}>` : undefined;
+      const content =
+        config.roleId === "everyone"
+          ? "@everyone"
+          : config.roleId
+            ? `<@&${config.roleId}>`
+            : undefined;
       await channel.send({ content, embeds: [embed] });
     } catch (err) {
       console.error(
