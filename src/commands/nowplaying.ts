@@ -8,6 +8,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { ExtendedClient, Command } from "../types";
+import { trackToSong } from "../lib/MoodenglinkManager";
 
 // Create progress bar
 function createProgressBar(
@@ -41,19 +42,19 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (!queue || !queue.nowPlaying) {
+    if (!player || !player.queue.current) {
       message.reply("❌ ไม่มีเพลงที่กำลังเล่นอยู่ค่ะ~");
       return;
     }
 
-    const song = queue.nowPlaying;
+    const song = trackToSong(player.queue.current);
     const loopModes = ["➡️ ปิด", "🔂 เพลงเดียว", "🔁 ทั้ง Queue"];
     const loopEmojis = ["➡️", "🔂", "🔁"];
 
     // Get current position from player
-    const position = queue.player?.position || 0;
+    const position = player.position || 0;
     const duration = song.duration * 1000 || 0;
     const progressBar = createProgressBar(position, duration);
     const currentTime = formatTime(position / 1000);
@@ -72,10 +73,14 @@ const command: Command = {
           value: song.requester || "Unknown",
           inline: true,
         },
-        { name: "🔄 Loop", value: loopModes[queue.loopMode], inline: true },
+        {
+          name: "🔄 Loop",
+          value: loopModes[player.repeatMode] || loopModes[0],
+          inline: true,
+        },
         {
           name: "📋 Queue",
-          value: `${queue.songs.length} songs`,
+          value: `${player.queue.length} songs`,
           inline: true,
         },
         { name: "🔊 Quality", value: "`OPUS • 128kbps`", inline: true }
@@ -93,7 +98,7 @@ const command: Command = {
         .setDisabled(true), // No previous for now
       new ButtonBuilder()
         .setCustomId("np_pause")
-        .setEmoji(queue.player?.paused ? "▶️" : "⏸️")
+        .setEmoji(player.paused ? "▶️" : "⏸️")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId("np_skip")
@@ -113,7 +118,7 @@ const command: Command = {
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId("np_loop")
-        .setEmoji(loopEmojis[queue.loopMode])
+        .setEmoji(loopEmojis[player.repeatMode] || loopEmojis[0])
         .setLabel("Loop")
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
@@ -145,8 +150,8 @@ const command: Command = {
         return;
       }
 
-      const currentQueue = client.queues.get(message.guild!.id);
-      if (!currentQueue || !currentQueue.player) {
+      const currentPlayer = client.manager.get(message.guild!.id);
+      if (!currentPlayer || !currentPlayer.queue.current) {
         await interaction.reply({
           content: "❌ ไม่มีเพลงที่กำลังเล่นค่ะ~",
           ephemeral: true,
@@ -156,8 +161,8 @@ const command: Command = {
 
       switch (interaction.customId) {
         case "np_pause":
-          const isPaused = currentQueue.player.paused;
-          await currentQueue.player.setPaused(!isPaused);
+          const isPaused = currentPlayer.paused;
+          await currentPlayer.pause(!isPaused);
           await interaction.reply({
             content: isPaused
               ? "▶️ เล่นต่อแล้วค่ะ~"
@@ -167,7 +172,7 @@ const command: Command = {
           break;
 
         case "np_skip":
-          currentQueue.player.stopTrack();
+          await currentPlayer.skip();
           await interaction.reply({
             content: "⏭️ ข้ามเพลงแล้วค่ะ~",
             ephemeral: true,
@@ -175,8 +180,7 @@ const command: Command = {
           break;
 
         case "np_stop":
-          currentQueue.songs = [];
-          currentQueue.player.stopTrack();
+          await currentPlayer.stop();
           await interaction.reply({
             content: "⏹️ หยุดเล่นและล้าง Queue แล้วค่ะ~",
             ephemeral: true,
@@ -184,14 +188,8 @@ const command: Command = {
           break;
 
         case "np_shuffle":
-          if (currentQueue.songs.length > 1) {
-            for (let i = currentQueue.songs.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [currentQueue.songs[i], currentQueue.songs[j]] = [
-                currentQueue.songs[j],
-                currentQueue.songs[i],
-              ];
-            }
+          if (currentPlayer.queue.length > 1) {
+            currentPlayer.queue.shuffle();
             await interaction.reply({
               content: "🔀 สับ Queue แล้วค่ะ~",
               ephemeral: true,
@@ -205,20 +203,22 @@ const command: Command = {
           break;
 
         case "np_loop":
-          currentQueue.loopMode = (currentQueue.loopMode + 1) % 3;
+          currentPlayer.setRepeatMode((currentPlayer.repeatMode + 1) % 3);
           const modes = [
             "➡️ ปิด Loop",
             "🔂 Loop เพลงเดียว",
             "🔁 Loop ทั้ง Queue",
           ];
           await interaction.reply({
-            content: `${modes[currentQueue.loopMode]}`,
+            content: `${modes[currentPlayer.repeatMode]}`,
             ephemeral: true,
           });
           break;
 
         case "np_queue":
-          const queueList = currentQueue.songs.slice(0, 5);
+          const queueList = currentPlayer.queue
+            .slice(0, 5)
+            .map((item) => trackToSong(item as any));
           let queueText = "📋 **Queue:**\n";
           if (queueList.length === 0) {
             queueText += "ว่างเปล่าค่ะ~";
@@ -226,8 +226,8 @@ const command: Command = {
             queueList.forEach((s, i) => {
               queueText += `${i + 1}. ${s.title}\n`;
             });
-            if (currentQueue.songs.length > 5) {
-              queueText += `...และอีก ${currentQueue.songs.length - 5} เพลง`;
+            if (currentPlayer.queue.length > 5) {
+              queueText += `...และอีก ${currentPlayer.queue.length - 5} เพลง`;
             }
           }
           await interaction.reply({

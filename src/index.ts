@@ -4,7 +4,7 @@ import { readdirSync } from "fs";
 import "dotenv/config";
 
 import { ExtendedClient, Command, AnyEvent } from "./types";
-import { createShoukaku } from "./lib/ShoukakuManager";
+import { createManager } from "./lib/MoodenglinkManager";
 import { startApiServer } from "./api";
 
 // Create Client
@@ -28,10 +28,11 @@ const client = new Client({
 
 // Initialize collections
 client.commands = new Collection<string, Command>();
-client.queues = new Map();
 
-// Initialize Shoukaku (Lavalink)
-client.shoukaku = createShoukaku(client);
+// Initialize Moodenglink (Lavalink)
+client.manager = createManager(client);
+client.on("raw", (d) => client.manager.updateVoiceState(d));
+client.once("ready", () => client.manager.init(client.user!.id));
 
 // Aliases collection
 const aliases = new Collection<string, string>();

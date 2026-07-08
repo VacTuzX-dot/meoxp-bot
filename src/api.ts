@@ -3,7 +3,7 @@ import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { ExtendedClient } from "./types";
-import { isLavalinkReady } from "./lib/ShoukakuManager";
+import { isLavalinkReady, trackToSong } from "./lib/MoodenglinkManager";
 
 const API_SECURITY_HEADERS = {
   "Content-Security-Policy":
@@ -77,9 +77,9 @@ export function startApiServer(
       (acc, g) => acc + g.memberCount,
       0,
     );
-    const activeQueues = client.queues.size;
-    const playingQueues = [...client.queues.values()].filter(
-      (q) => q.nowPlaying,
+    const activeQueues = client.manager.players.size;
+    const playingQueues = [...client.manager.players.values()].filter(
+      (p) => p.queue.current,
     ).length;
 
     res.json({
@@ -101,16 +101,18 @@ export function startApiServer(
 
   // All queues summary
   app.get("/api/queues", (req, res) => {
-    const queues = [...client.queues.entries()].map(([guildId, queue]) => {
-      const guild = client.guilds.cache.get(guildId);
-      return {
-        guildId,
-        guildName: guild?.name || "Unknown",
-        nowPlaying: queue.nowPlaying?.title || null,
-        queueLength: queue.songs.length,
-        loopMode: queue.loopMode,
-      };
-    });
+    const queues = [...client.manager.players.entries()].map(
+      ([guildId, player]) => {
+        const guild = client.guilds.cache.get(guildId);
+        return {
+          guildId,
+          guildName: guild?.name || "Unknown",
+          nowPlaying: player.queue.current?.title || null,
+          queueLength: player.queue.length,
+          loopMode: player.repeatMode,
+        };
+      },
+    );
 
     res.json({ queues });
   });
@@ -121,34 +123,40 @@ export function startApiServer(
 }
 
 export function getQueuePayload(client: ExtendedClient, guildId: string) {
-  const queue = client.queues.get(guildId);
+  const player = client.manager.get(guildId);
 
-  if (!queue) {
+  if (!player) {
     return { exists: false, nowPlaying: null, songs: [] };
   }
 
   const guild = client.guilds.cache.get(guildId);
+  const current = player.queue.current
+    ? trackToSong(player.queue.current)
+    : null;
 
   return {
     exists: true,
     guildName: guild?.name || "Unknown",
-    nowPlaying: queue.nowPlaying
+    nowPlaying: current
       ? {
-          title: queue.nowPlaying.title,
-          url: queue.nowPlaying.url,
-          duration: queue.nowPlaying.durationInfo,
-          thumbnail: queue.nowPlaying.thumbnail,
-          requester: queue.nowPlaying.requester,
+          title: current.title,
+          url: current.url,
+          duration: current.durationInfo,
+          thumbnail: current.thumbnail,
+          requester: current.requester,
         }
       : null,
-    songs: queue.songs.slice(0, 10).map((s) => ({
-      title: s.title,
-      duration: s.durationInfo,
-      requester: s.requester,
-    })),
-    totalSongs: queue.songs.length,
-    loopMode: queue.loopMode,
-    persistent: queue.persistent,
+    songs: player.queue.slice(0, 10).map((item) => {
+      const s = trackToSong(item as any);
+      return {
+        title: s.title,
+        duration: s.durationInfo,
+        requester: s.requester,
+      };
+    }),
+    totalSongs: player.queue.length,
+    loopMode: player.repeatMode,
+    persistent: player.get<boolean>("persistent") ?? false,
   };
 }
 

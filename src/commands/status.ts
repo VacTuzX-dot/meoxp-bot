@@ -61,7 +61,7 @@ const command: Command = {
 
       // Bot stats
       const guilds = client.guilds.cache.size;
-      const activeQueues = client.queues?.size || 0;
+      const activeQueues = client.manager?.players.size || 0;
 
       const embed = new EmbedBuilder()
         .setTitle(`🖥️ Server Status`)

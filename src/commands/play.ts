@@ -1,164 +1,11 @@
+import { Message, EmbedBuilder } from "discord.js";
+import { ExtendedClient, Command } from "../types";
 import {
-  Message,
-  EmbedBuilder,
-  ActivityType,
-  PresenceUpdateStatus,
-} from "discord.js";
-import { LoadType } from "shoukaku";
-import { ExtendedClient, Command, Song } from "../types";
-import {
-  createQueue,
   getPlayer,
   trackToSong,
-  formatDuration,
   isLavalinkReady,
-  getAvailableNode,
-} from "../lib/ShoukakuManager";
+} from "../lib/MoodenglinkManager";
 import { broadcastGuildUpdate } from "../api";
-
-// Format audio quality string
-function formatAudioQuality(song: Song): string {
-  return "`OPUS` • 128kbps • 48kHz • Stereo";
-}
-
-// Create Now Playing embed
-function createNowPlayingEmbed(song: Song, queue: any): EmbedBuilder {
-  const loopModes = ["➡️ ปิด", "🔂 เพลงเดียว", "🔁 ทั้ง Queue"];
-
-  const embed = new EmbedBuilder()
-    .setTitle("🎵 กำลังเล่นเพลงค่ะ~")
-    .setDescription(`**${song.title}**`)
-    .setColor(0x00ff88)
-    .addFields(
-      {
-        name: "⏱️ ความยาว",
-        value: song.durationInfo || "Unknown",
-        inline: true,
-      },
-      { name: "🎤 ศิลปิน", value: song.uploader || "Unknown", inline: true },
-      { name: "👤 ขอโดย", value: song.requester || "Unknown", inline: true },
-      {
-        name: "🔊 คุณภาพเสียง",
-        value: formatAudioQuality(song),
-        inline: false,
-      },
-      { name: "🔄 Loop", value: loopModes[queue?.loopMode || 0], inline: true },
-      {
-        name: "📋 Queue",
-        value: `${queue?.songs?.length || 0} เพลง`,
-        inline: true,
-      }
-    )
-    .setFooter({ text: "💕 เพลงเพราะมากเลยค่ะ~" });
-
-  if (song.thumbnail) embed.setThumbnail(song.thumbnail);
-
-  return embed;
-}
-
-// Update bot presence
-function updateBotPresence(client: ExtendedClient, inVoice: boolean): void {
-  client.user?.setPresence({
-    status: inVoice
-      ? PresenceUpdateStatus.DoNotDisturb
-      : PresenceUpdateStatus.Idle,
-    activities: [
-      {
-        name: inVoice ? "🎵 กำลังเล่นเพลง~" : "เปิดใช้เมนูพิมพ์ !!help ค่ะ 😊",
-        type: ActivityType.Listening,
-      },
-    ],
-  });
-}
-
-// Process queue
-async function processQueue(
-  guildId: string,
-  client: ExtendedClient
-): Promise<void> {
-  const queue = client.queues.get(guildId);
-  if (!queue || !queue.player) return;
-
-  // Handle Loop Logic
-  if (queue.nowPlaying) {
-    if (queue.loopMode === 1) {
-      queue.songs.unshift(queue.nowPlaying);
-    } else if (queue.loopMode === 2) {
-      queue.songs.push(queue.nowPlaying);
-    }
-  }
-
-  // Check if empty
-  if (queue.songs.length === 0) {
-    queue.nowPlaying = null;
-    broadcastGuildUpdate(client, guildId);
-    return;
-  }
-
-  const song = queue.songs.shift()!;
-  queue.nowPlaying = song;
-
-  console.log("[PLAY] Now playing:", song.title);
-  broadcastGuildUpdate(client, guildId);
-
-  try {
-    // Get the node
-    const node = client.shoukaku.options.nodeResolver(client.shoukaku.nodes);
-    if (!node) {
-      console.error("[LAVALINK] No available nodes");
-      return;
-    }
-
-    // Search and play
-    const result = await node.rest.resolve(song.url);
-    if (
-      !result ||
-      result.loadType === LoadType.ERROR ||
-      result.loadType === LoadType.EMPTY
-    ) {
-      console.error("[LAVALINK] Failed to load track:", song.url);
-      return processQueue(guildId, client);
-    }
-
-    const track =
-      result.loadType === LoadType.TRACK
-        ? result.data
-        : (result.data as any)[0];
-    if (!track) {
-      console.error("[LAVALINK] No track found in result");
-      return processQueue(guildId, client);
-    }
-
-    console.log("[LAVALINK] Playing track:", track.info?.title);
-    console.log(
-      "[LAVALINK] Track encoded:",
-      track.encoded?.substring(0, 50) + "..."
-    );
-
-    // Play the track - use correct format for Shoukaku v4
-    await queue.player.playTrack({ track: { encoded: track.encoded } });
-
-    // Send Now Playing message
-    if (queue.textChannelId) {
-      const channel = await client.channels.fetch(queue.textChannelId);
-      if (channel && "send" in channel) {
-        // Delete old message
-        if (queue.nowPlayingMessage) {
-          queue.nowPlayingMessage.delete().catch(() => {});
-        }
-
-        const embed = createNowPlayingEmbed(song, queue);
-        const npMsg = await (channel as any)
-          .send({ embeds: [embed] })
-          .catch(() => null);
-        queue.nowPlayingMessage = npMsg;
-      }
-    }
-  } catch (error) {
-    console.error("Play error:", error);
-    setTimeout(() => processQueue(guildId, client), 1000);
-  }
-}
 
 const command: Command = {
   name: "play",
@@ -184,19 +31,9 @@ const command: Command = {
     const voiceChannelId = member.voice.channel.id;
     const guildId = message.guild!.id;
 
-    // Initialize queue if not exists
-    if (!client.queues.has(guildId)) {
-      client.queues.set(guildId, createQueue());
-    }
-
-    const queue = client.queues.get(guildId)!;
-    queue.textChannelId = message.channel.id;
-    queue.voiceChannelId = voiceChannelId;
-
     const statusMsg = await message.reply("🔍 กำลังค้นหาเพลงค่ะ...");
 
     try {
-      // Check if Lavalink is ready
       if (!isLavalinkReady(client)) {
         await statusMsg.edit(
           "❌ Lavalink ยังไม่พร้อมค่ะ กำลัง reconnect... กรุณารอสักครู่~"
@@ -204,103 +41,55 @@ const command: Command = {
         return;
       }
 
-      // Get the node
-      const node = getAvailableNode(client);
-      if (!node) {
-        await statusMsg.edit("❌ ไม่มี Lavalink node พร้อมใช้งานค่ะ 🥺");
-        return;
-      }
+      const result = await client.manager.search(
+        query,
+        message.author.username
+      );
 
-      // Determine if it's a search or direct URL
-      const isUrl = query.startsWith("http://") || query.startsWith("https://");
-      const searchQuery = isUrl ? query : `ytsearch:${query}`;
-
-      // Search for tracks
-      const result = await node.rest.resolve(searchQuery);
-
-      if (!result || result.loadType === LoadType.ERROR) {
+      if (result.loadType === "error") {
         await statusMsg.edit("❌ เกิดข้อผิดพลาดในการค้นหาค่ะ 🥺");
         return;
       }
 
-      if (result.loadType === LoadType.EMPTY) {
+      if (result.loadType === "empty" || result.tracks.length === 0) {
         await statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
         return;
       }
 
-      let songsToAdd: Song[] = [];
+      const player = await getPlayer(
+        client,
+        guildId,
+        voiceChannelId,
+        message.channel.id
+      );
+      if (!player) {
+        await statusMsg.edit("❌ ไม่สามารถเชื่อมต่อห้องเสียงได้ค่ะ 🥺");
+        return;
+      }
 
-      if (result.loadType === LoadType.PLAYLIST) {
-        // Playlist
-        const tracks = (result.data as any).tracks;
-        const maxSongs = Math.min(tracks.length, 500);
+      let addedCount = 0;
+      if (result.loadType === "playlist") {
+        const tracks = result.tracks.slice(0, 500);
+        player.queue.add(tracks);
+        addedCount = tracks.length;
 
-        for (let i = 0; i < maxSongs; i++) {
-          const song = trackToSong(tracks[i], message.author.username);
-          if (song) songsToAdd.push(song);
-        }
-
-        let statusText = `📚 เพิ่ม Playlist **${songsToAdd.length}** เพลงแล้วค่ะ~`;
-        if (tracks.length > 500) {
-          statusText += `\n⚠️ Playlist มี ${tracks.length} เพลง แต่เพิ่มได้สูงสุด 500 เพลงค่ะ`;
+        let statusText = `📚 เพิ่ม Playlist **${addedCount}** เพลงแล้วค่ะ~`;
+        if (result.tracks.length > 500) {
+          statusText += `\n⚠️ Playlist มี ${result.tracks.length} เพลง แต่เพิ่มได้สูงสุด 500 เพลงค่ะ`;
         }
         await statusMsg.edit(statusText);
-      } else if (result.loadType === LoadType.SEARCH) {
-        // Search result - get first
-        const track = (result.data as any)[0];
-        if (!track) {
-          await statusMsg.edit("❌ ไม่พบเพลงค่ะ 🥺");
-          return;
-        }
-        const song = trackToSong(track, message.author.username);
-        if (song) songsToAdd.push(song);
-      } else if (result.loadType === LoadType.TRACK) {
-        // Single track
-        const song = trackToSong(result.data, message.author.username);
-        if (song) songsToAdd.push(song);
+      } else {
+        player.queue.add(result.tracks[0]);
+        addedCount = 1;
       }
 
-      // Add to queue
-      queue.songs.push(...songsToAdd);
       broadcastGuildUpdate(client, guildId);
 
-      // Connect to voice if needed
-      if (!queue.player) {
-        const player = await getPlayer(client, guildId, voiceChannelId);
-        if (!player) {
-          await statusMsg.edit("❌ ไม่สามารถเชื่อมต่อห้องเสียงได้ค่ะ 🥺");
-          return;
-        }
-
-        queue.player = player;
-        updateBotPresence(client, true);
-
-        // Player events
-        player.on("end", () => {
-          processQueue(guildId, client);
-          // Broadcast update after processing next track (waits for async processQueue? no, processQueue is async but we don't await it here)
-          // Actually processQueue calls broadcast, so we are good for next track.
-          // But if queue ends, processQueue returns early. We should handle that.
-        });
-
-        player.on("exception", (error) => {
-          console.error("Player error:", error);
-          processQueue(guildId, client);
-        });
-
-        player.on("stuck", () => {
-          console.log("[PLAYER] Track stuck, skipping...");
-          processQueue(guildId, client);
-        });
-      }
-
-      // Start playing if not already
-      if (!queue.nowPlaying) {
-        await processQueue(guildId, client);
+      if (!player.playing && !player.paused) {
+        await player.play();
         await statusMsg.delete().catch(() => {});
-      } else if (songsToAdd.length === 1) {
-        // Single song added - show embed
-        const song = songsToAdd[0];
+      } else if (addedCount === 1) {
+        const song = trackToSong(result.tracks[0]);
         const embed = new EmbedBuilder()
           .setTitle("📥 เพิ่มเข้า Queue แล้วค่ะ~")
           .setDescription(`**${song.title}**`)
@@ -318,13 +107,12 @@ const command: Command = {
             }
           )
           .setFooter({
-            text: `📋 ตำแหน่งใน Queue: #${queue.songs.length} | ขอโดย: ${song.requester}`,
+            text: `📋 ตำแหน่งใน Queue: #${player.queue.length} | ขอโดย: ${song.requester}`,
           });
 
         if (song.thumbnail) embed.setThumbnail(song.thumbnail);
         await statusMsg.edit({ content: "", embeds: [embed] });
       } else {
-        // Playlist - delete message after delay
         setTimeout(() => statusMsg.delete().catch(() => {}), 5000);
       }
     } catch (error) {

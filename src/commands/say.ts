@@ -1,11 +1,6 @@
 import { Message } from "discord.js";
 import { ExtendedClient, Command } from "../types";
-import {
-  createQueue,
-  getPlayer,
-  isLavalinkReady,
-  getAvailableNode,
-} from "../lib/ShoukakuManager";
+import { getPlayer, isLavalinkReady } from "../lib/MoodenglinkManager";
 import * as googleTTS from "google-tts-api";
 
 const command: Command = {
@@ -45,14 +40,6 @@ const command: Command = {
     const guildId = message.guild!.id;
     const voiceChannelId = member.voice.channel.id;
 
-    if (!client.queues.has(guildId)) {
-      client.queues.set(guildId, createQueue());
-    }
-
-    const queue = client.queues.get(guildId)!;
-    queue.textChannelId = message.channel.id;
-    queue.voiceChannelId = voiceChannelId;
-
     try {
       const ttsUrl = googleTTS.getAudioUrl(text, {
         lang: "th",
@@ -60,41 +47,29 @@ const command: Command = {
         host: "https://translate.google.com",
       });
 
-      if (!queue.player) {
-        const player = await getPlayer(client, guildId, voiceChannelId);
-        if (!player) {
-          message.reply("😢 หนูเข้าห้องไม่ได้ค่ะนายท่าน~");
-          return;
-        }
-        queue.player = player;
-      }
-
-      const node = getAvailableNode(client);
-      if (!node) {
-        message.reply("⚠️ ระบบไม่พร้อมค่ะนายท่าน กรุณาลองใหม่นะคะ~");
+      const player = await getPlayer(
+        client,
+        guildId,
+        voiceChannelId,
+        message.channel.id,
+      );
+      if (!player) {
+        message.reply("😢 หนูเข้าห้องไม่ได้ค่ะนายท่าน~");
         return;
       }
 
-      const result = await node.rest.resolve(ttsUrl);
+      const result = await client.manager.search(ttsUrl);
 
       if (
-        !result ||
         result.loadType === "error" ||
-        result.loadType === "empty"
+        result.loadType === "empty" ||
+        result.tracks.length === 0
       ) {
         message.reply("❌ ไม่สามารถโหลดเสียงได้ค่ะนายท่าน~");
         return;
       }
 
-      const track =
-        result.loadType === "track" ? result.data : (result.data as any)[0];
-
-      if (!track) {
-        message.reply("❌ เกิดข้อผิดพลาดค่ะนายท่าน~");
-        return;
-      }
-
-      await queue.player.playTrack({ track: { encoded: track.encoded } });
+      await player.play({ track: result.tracks[0] });
 
       const reply = await message.reply(`🗣️ "${text}"`);
       setTimeout(() => reply.delete().catch(() => {}), 5000);

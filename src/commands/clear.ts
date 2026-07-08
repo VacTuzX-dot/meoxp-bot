@@ -10,15 +10,15 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (!queue) {
+    if (!player) {
       message.reply("❌ ไม่มี Queue นะคะนายท่าน~");
       return;
     }
 
-    const count = queue.songs.length;
-    queue.songs = [];
+    const count = player.queue.length;
+    player.queue.clear();
 
     message.reply(`🗑️ ล้าง Queue แล้วค่ะนายท่าน~ (${count} เพลง) ✨`);
   },

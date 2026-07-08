@@ -5,7 +5,7 @@ import {
   PresenceUpdateStatus,
 } from "discord.js";
 import { ExtendedClient, defineEvent } from "../types";
-import { destroyPlayer } from "../lib/ShoukakuManager";
+import { destroyPlayer } from "../lib/MoodenglinkManager";
 
 // Store timeout IDs per guild
 const leaveTimeouts = new Map<string, NodeJS.Timeout>();
@@ -71,9 +71,9 @@ const event = defineEvent({
       ).size;
 
       if (membersInChannel === 0) {
-        // Check if queue is in persistent mode (joined via !!join)
-        const queue = client.queues.get(oldState.guild.id);
-        if (queue?.persistent) {
+        // Check if player is in persistent mode (joined via !!join)
+        const player = client.manager.get(oldState.guild.id);
+        if (player?.get<boolean>("persistent")) {
           console.log("[VOICE] Persistent mode - not leaving");
           return;
         }

@@ -1,10 +1,6 @@
 import { Message, EmbedBuilder } from "discord.js";
 import { ExtendedClient, Command } from "../types";
-import {
-  createQueue,
-  getPlayer,
-  isLavalinkReady,
-} from "../lib/ShoukakuManager";
+import { getPlayer, isLavalinkReady } from "../lib/MoodenglinkManager";
 
 const command: Command = {
   name: "join",
@@ -35,22 +31,18 @@ const command: Command = {
       return;
     }
 
-    if (!client.queues.has(guildId)) {
-      client.queues.set(guildId, createQueue());
-    }
-
-    const queue = client.queues.get(guildId)!;
-    queue.voiceChannelId = voiceChannelId;
-    queue.textChannelId = message.channel.id;
-    queue.persistent = true;
-
-    const player = await getPlayer(client, guildId, voiceChannelId);
+    const player = await getPlayer(
+      client,
+      guildId,
+      voiceChannelId,
+      message.channel.id
+    );
     if (!player) {
       message.reply("😢 ขอโทษนะคะนายท่าน หนูเข้าห้องไม่ได้ค่ะ~");
       return;
     }
 
-    queue.player = player;
+    player.set("persistent", true); // joined via !!join, no auto-leave
 
     const embed = new EmbedBuilder()
       .setTitle("🎀 หนูมาแล้วค่ะนายท่าน~")

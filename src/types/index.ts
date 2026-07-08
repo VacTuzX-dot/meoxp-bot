@@ -1,12 +1,11 @@
 import { Client, ClientEvents, Collection, Message } from "discord.js";
-import { Shoukaku, Player } from "shoukaku";
+import { Moodenglink } from "moodenglink";
 
-// Extended Discord Client with Shoukaku
+// Extended Discord Client with Moodenglink
 export interface ExtendedClient extends Client {
-  shoukaku: Shoukaku;
+  manager: Moodenglink;
   commands: Collection<string, Command>;
   aliases: Collection<string, string>;
-  queues: Map<string, Queue>;
   io?: any;
 }
 
@@ -44,7 +43,7 @@ export function defineEvent<K extends keyof ClientEvents>(event: Event<K>): AnyE
   return event as unknown as AnyEvent;
 }
 
-// Song interface
+// Song view derived from a moodenglink Track — used by embeds and the dashboard API
 export interface Song {
   title: string;
   url: string;
@@ -54,24 +53,4 @@ export interface Song {
   requester: string;
   uploader: string;
   identifier: string;
-}
-
-// Queue interface
-export interface Queue {
-  songs: Song[];
-  player: Player | null;
-  textChannelId: string | null;
-  voiceChannelId: string | null;
-  loopMode: number; // 0: off, 1: single, 2: queue
-  nowPlaying: Song | null;
-  nowPlayingMessage: Message | null;
-  persistent: boolean; // true = joined via !!join, no auto-leave
-}
-
-// Lavalink Node configuration
-export interface LavalinkNode {
-  name: string;
-  url: string;
-  auth: string;
-  secure?: boolean;
 }

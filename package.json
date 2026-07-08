@@ -1,7 +1,7 @@
 {
   "name": "meoxp-bot",
   "version": "2.0.0",
-  "description": "Discord Music Bot with TypeScript and Shoukaku",
+  "description": "Discord Music Bot with TypeScript and Moodenglink",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
@@ -18,7 +18,7 @@
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "google-tts-api": "^2.0.2",
-    "shoukaku": "^4.3.0",
+    "moodenglink": "github:Moodeng-LAB/moodenglink#98b60305248439a6e98468ae8c275a6b65a55109",
     "socket.io": "^4.8.3",
     "systeminformation": "^5.31.5"
   },

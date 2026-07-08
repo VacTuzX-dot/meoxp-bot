@@ -1,6 +1,6 @@
 import { Message } from "discord.js";
 import { ExtendedClient, Command } from "../types";
-import { destroyPlayer } from "../lib/ShoukakuManager";
+import { destroyPlayer } from "../lib/MoodenglinkManager";
 
 const command: Command = {
   name: "leave",
@@ -11,9 +11,9 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (queue?.player) {
+    if (player) {
       destroyPlayer(client, message.guild!.id);
       message.reply(
         "👋 ลาก่อนนะคะนายท่าน~ หนูไปพักก่อนนะคะ ไว้เรียกหนูมาอีกนะคะ! 💕"

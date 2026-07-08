@@ -8,6 +8,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { ExtendedClient, Command } from "../types";
+import { trackToSong } from "../lib/MoodenglinkManager";
 
 const command: Command = {
   name: "panel",
@@ -18,13 +19,14 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
     const loopModes = ["➡️ Off", "🔂 Song", "🔁 Queue"];
 
-    const createEmbed = () => {
-      const currentQueue = client.queues.get(message.guild!.id);
+    const getPlayer = () => client.manager.get(message.guild!.id);
 
-      if (!currentQueue || !currentQueue.nowPlaying) {
+    const createEmbed = () => {
+      const player = getPlayer();
+
+      if (!player || !player.queue.current) {
         return new EmbedBuilder()
           .setTitle("🎛️ Music Control Panel")
           .setDescription(
@@ -34,8 +36,8 @@ const command: Command = {
           .setFooter({ text: "💕 Ready to play music~" });
       }
 
-      const song = currentQueue.nowPlaying;
-      const isPaused = currentQueue.player?.paused ?? false;
+      const song = trackToSong(player.queue.current);
+      const isPaused = player.paused;
       const statusEmoji = isPaused ? "⏸️" : "▶️";
       const statusText = isPaused ? "Paused" : "Playing";
 
@@ -58,12 +60,12 @@ const command: Command = {
           },
           {
             name: "🔄 Loop",
-            value: loopModes[currentQueue.loopMode],
+            value: loopModes[player.repeatMode] || loopModes[0],
             inline: true,
           },
           {
             name: "📋 Queue",
-            value: `${currentQueue.songs.length} songs`,
+            value: `${player.queue.length} songs`,
             inline: true,
           },
           {
@@ -78,9 +80,9 @@ const command: Command = {
     };
 
     const createButtons = () => {
-      const currentQueue = client.queues.get(message.guild!.id);
-      const isPaused = currentQueue?.player?.paused ?? false;
-      const hasQueue = currentQueue && currentQueue.songs.length > 0;
+      const player = getPlayer();
+      const isPaused = player?.paused ?? false;
+      const hasQueue = !!player && player.queue.length > 0;
 
       const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
@@ -145,13 +147,13 @@ const command: Command = {
         return;
       }
 
-      const currentQueue = client.queues.get(message.guild!.id);
+      const player = getPlayer();
 
       switch (interaction.customId) {
         case "panel_pause":
-          if (currentQueue?.player) {
-            const isPaused = currentQueue.player.paused;
-            await currentQueue.player.setPaused(!isPaused);
+          if (player) {
+            const isPaused = player.paused;
+            await player.pause(!isPaused);
             await interaction.update({
               embeds: [createEmbed()],
               components: createButtons(),
@@ -165,8 +167,8 @@ const command: Command = {
           break;
 
         case "panel_skip":
-          if (currentQueue?.player) {
-            currentQueue.player.stopTrack();
+          if (player) {
+            await player.skip();
             await interaction.reply({
               content: "⏭️ ข้ามเพลงแล้วค่ะ~",
               ephemeral: true,
@@ -180,9 +182,8 @@ const command: Command = {
           break;
 
         case "panel_stop":
-          if (currentQueue) {
-            currentQueue.songs = [];
-            currentQueue.player?.stopTrack();
+          if (player) {
+            await player.stop();
             await interaction.reply({
               content: "⏹️ หยุดเล่นแล้วค่ะ~",
               ephemeral: true,
@@ -191,14 +192,8 @@ const command: Command = {
           break;
 
         case "panel_shuffle":
-          if (currentQueue && currentQueue.songs.length > 1) {
-            for (let i = currentQueue.songs.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [currentQueue.songs[i], currentQueue.songs[j]] = [
-                currentQueue.songs[j],
-                currentQueue.songs[i],
-              ];
-            }
+          if (player && player.queue.length > 1) {
+            player.queue.shuffle();
             await interaction.reply({
               content: "🔀 Shuffled!",
               ephemeral: true,
@@ -212,11 +207,11 @@ const command: Command = {
           break;
 
         case "panel_loop":
-          if (currentQueue) {
-            currentQueue.loopMode = (currentQueue.loopMode + 1) % 3;
+          if (player) {
+            player.setRepeatMode((player.repeatMode + 1) % 3);
             const modes = ["➡️ Loop Off", "🔂 Loop Song", "🔁 Loop Queue"];
             await interaction.reply({
-              content: modes[currentQueue.loopMode],
+              content: modes[player.repeatMode],
               ephemeral: true,
             });
             await reply.edit({
@@ -227,14 +222,16 @@ const command: Command = {
           break;
 
         case "panel_queue":
-          if (currentQueue && currentQueue.songs.length > 0) {
-            const queueList = currentQueue.songs.slice(0, 5);
+          if (player && player.queue.length > 0) {
+            const queueList = player.queue
+              .slice(0, 5)
+              .map((item) => trackToSong(item as any));
             let text = "📋 **Queue:**\n";
             queueList.forEach((s, i) => {
               text += `${i + 1}. ${s.title}\n`;
             });
-            if (currentQueue.songs.length > 5) {
-              text += `*...และอีก ${currentQueue.songs.length - 5} เพลง*`;
+            if (player.queue.length > 5) {
+              text += `*...และอีก ${player.queue.length - 5} เพลง*`;
             }
             await interaction.reply({ content: text, ephemeral: true });
           } else {

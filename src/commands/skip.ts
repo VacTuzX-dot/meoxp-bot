@@ -10,15 +10,15 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (!queue || !queue.player) {
+    if (!player || !player.queue.current) {
       message.reply("❌ ไม่มีเพลงที่กำลังเล่นอยู่นะคะนายท่าน~");
       return;
     }
 
-    const skippedTitle = queue.nowPlaying?.title || "เพลง";
-    queue.player.stopTrack();
+    const skippedTitle = player.queue.current.title || "เพลง";
+    await player.skip();
     message.reply(`⏭️ ข้ามเพลง **${skippedTitle}** แล้วค่ะนายท่าน~ 🎵`);
   },
 };

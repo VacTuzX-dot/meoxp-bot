@@ -1,5 +1,6 @@
 import { Message, EmbedBuilder } from "discord.js";
 import { ExtendedClient, Command } from "../types";
+import { trackToSong } from "../lib/MoodenglinkManager";
 
 const loopModes = [
   { emoji: "➡️", text: "ปิด Loop", color: 0x808080 },
@@ -16,15 +17,15 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (!queue) {
+    if (!player) {
       message.reply("❌ ไม่มีการเล่นเพลงอยู่นะคะนายท่าน~");
       return;
     }
 
-    queue.loopMode = (queue.loopMode + 1) % 3;
-    const mode = loopModes[queue.loopMode];
+    player.setRepeatMode((player.repeatMode + 1) % 3);
+    const mode = loopModes[player.repeatMode];
 
     const loopMsg = await message.reply(
       `${mode.emoji} ${mode.text}แล้วค่ะนายท่าน~ ✨`
@@ -34,8 +35,9 @@ const command: Command = {
       message.delete().catch(() => {});
     }, 3000);
 
-    if (queue.nowPlaying && queue.nowPlayingMessage) {
-      const song = queue.nowPlaying;
+    const npMessage = player.get<Message>("nowPlayingMessage");
+    if (player.queue.current && npMessage) {
+      const song = trackToSong(player.queue.current);
 
       const embed = new EmbedBuilder()
         .setTitle("🎵 กำลังเล่นเพลงค่ะนายท่าน~")
@@ -65,7 +67,7 @@ const command: Command = {
           },
           {
             name: "📋 Queue",
-            value: `${queue.songs.length} เพลง`,
+            value: `${player.queue.length} เพลง`,
             inline: true,
           }
         )
@@ -74,7 +76,7 @@ const command: Command = {
       if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
       try {
-        await queue.nowPlayingMessage.edit({ embeds: [embed] });
+        await npMessage.edit({ embeds: [embed] });
       } catch (e) {}
     }
   },

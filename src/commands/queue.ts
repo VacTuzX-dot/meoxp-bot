@@ -8,6 +8,8 @@ import {
   ComponentType,
 } from "discord.js";
 import { ExtendedClient, Command, Song } from "../types";
+import { trackToSong } from "../lib/MoodenglinkManager";
+import type { Player } from "moodenglink";
 
 // Format duration
 function formatDuration(seconds: number): string {
@@ -30,6 +32,11 @@ function getTotalDuration(songs: Song[]): string {
   return formatDuration(total);
 }
 
+// Live Song view of the player's queue
+function getSongs(player: Player): Song[] {
+  return player.queue.map((item) => trackToSong(item as any));
+}
+
 const SONGS_PER_PAGE = 10;
 
 const command: Command = {
@@ -41,37 +48,39 @@ const command: Command = {
     args: string[],
     client: ExtendedClient
   ): Promise<void> {
-    const queue = client.queues.get(message.guild!.id);
+    const player = client.manager.get(message.guild!.id);
 
-    if (!queue || (!queue.nowPlaying && queue.songs.length === 0)) {
+    if (!player || (!player.queue.current && player.queue.length === 0)) {
       message.reply("❌ Queue ว่างเปล่าค่ะ~");
       return;
     }
 
     const loopModes = ["➡️ Off", "🔂 Song", "🔁 Queue"];
     let currentPage = 0;
-    const totalPages = Math.max(
-      1,
-      Math.ceil(queue.songs.length / SONGS_PER_PAGE)
-    );
 
     const createEmbed = (page: number) => {
+      const songs = getSongs(player);
+      const nowPlaying = player.queue.current
+        ? trackToSong(player.queue.current)
+        : null;
+      const totalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
+
       const start = page * SONGS_PER_PAGE;
       const end = start + SONGS_PER_PAGE;
-      const songsToShow = queue.songs.slice(start, end);
+      const songsToShow = songs.slice(start, end);
 
       let description = "";
 
       // Now playing
-      if (queue.nowPlaying) {
+      if (nowPlaying) {
         description += `🎵 **NOW PLAYING**\n`;
-        description += `╰➤ [${queue.nowPlaying.title}](${queue.nowPlaying.url})\n`;
-        description += `    └ \`${queue.nowPlaying.durationInfo}\` • ${queue.nowPlaying.requester}\n\n`;
+        description += `╰➤ [${nowPlaying.title}](${nowPlaying.url})\n`;
+        description += `    └ \`${nowPlaying.durationInfo}\` • ${nowPlaying.requester}\n\n`;
       }
 
       // Queue
-      if (queue.songs.length > 0) {
-        description += `📋 **QUEUE** (${queue.songs.length} songs)\n`;
+      if (songs.length > 0) {
+        description += `📋 **QUEUE** (${songs.length} songs)\n`;
         description += `━━━━━━━━━━━━━━━\n`;
 
         songsToShow.forEach((song, index) => {
@@ -84,7 +93,7 @@ const command: Command = {
           description += `    └ \`${song.durationInfo}\` • ${song.requester}\n`;
         });
 
-        if (queue.songs.length > SONGS_PER_PAGE) {
+        if (songs.length > SONGS_PER_PAGE) {
           description += `━━━━━━━━━━━━━━━\n`;
         }
       } else {
@@ -96,24 +105,33 @@ const command: Command = {
         .setDescription(description)
         .setColor(0xff69b4)
         .addFields(
-          { name: "🔄 Loop", value: loopModes[queue.loopMode], inline: true },
+          {
+            name: "🔄 Loop",
+            value: loopModes[player.repeatMode] || loopModes[0],
+            inline: true,
+          },
           {
             name: "⏱️ Total",
-            value: getTotalDuration(queue.songs),
+            value: getTotalDuration(songs),
             inline: true,
           },
           { name: "📄 Page", value: `${page + 1}/${totalPages}`, inline: true }
         )
         .setFooter({ text: "💕 Enjoy your music~" });
 
-      if (queue.nowPlaying?.thumbnail) {
-        embed.setThumbnail(queue.nowPlaying.thumbnail);
+      if (nowPlaying?.thumbnail) {
+        embed.setThumbnail(nowPlaying.thumbnail);
       }
 
       return embed;
     };
 
     const createButtons = (page: number) => {
+      const totalPages = Math.max(
+        1,
+        Math.ceil(player.queue.length / SONGS_PER_PAGE)
+      );
+
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId("queue_first")
@@ -155,7 +173,7 @@ const command: Command = {
           .setStyle(ButtonStyle.Danger)
       );
 
-      return queue.songs.length > SONGS_PER_PAGE ? [row, row2] : [row2];
+      return player.queue.length > SONGS_PER_PAGE ? [row, row2] : [row2];
     };
 
     const reply = await message.reply({
@@ -169,7 +187,10 @@ const command: Command = {
     });
 
     collector.on("collect", async (interaction: ButtonInteraction) => {
-      const currentQueue = client.queues.get(message.guild!.id);
+      const totalPages = Math.max(
+        1,
+        Math.ceil(player.queue.length / SONGS_PER_PAGE)
+      );
 
       switch (interaction.customId) {
         case "queue_first":
@@ -185,14 +206,8 @@ const command: Command = {
           currentPage = totalPages - 1;
           break;
         case "queue_shuffle":
-          if (currentQueue && currentQueue.songs.length > 1) {
-            for (let i = currentQueue.songs.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [currentQueue.songs[i], currentQueue.songs[j]] = [
-                currentQueue.songs[j],
-                currentQueue.songs[i],
-              ];
-            }
+          if (player.queue.length > 1) {
+            player.queue.shuffle();
             await interaction.reply({
               content: "🔀 Shuffled!",
               ephemeral: true,
@@ -209,18 +224,15 @@ const command: Command = {
           });
           return;
         case "queue_clear":
-          if (currentQueue) {
-            currentQueue.songs = [];
-            await interaction.reply({
-              content: "🗑️ ล้าง Queue แล้วค่ะ~",
-              ephemeral: true,
-            });
-            await reply.edit({
-              embeds: [createEmbed(0)],
-              components: [],
-            });
-            return;
-          }
+          player.queue.clear();
+          await interaction.reply({
+            content: "🗑️ ล้าง Queue แล้วค่ะ~",
+            ephemeral: true,
+          });
+          await reply.edit({
+            embeds: [createEmbed(0)],
+            components: [],
+          });
           return;
       }
 
