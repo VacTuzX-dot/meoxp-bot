@@ -24,11 +24,11 @@ lavalink:
     password: ${LAVALINK_SERVER_PASSWORD}
     sources:
       youtube: false
-      bandcamp: true
+      bandcamp: false
       soundcloud: true
-      twitch: true
-      vimeo: true
-      http: true
+      twitch: false
+      vimeo: false
+      http: false
       local: false
     filters:
       volume: true
@@ -41,10 +41,10 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 1500
-    frameBufferDurationMs: 8000
-    youtubePlaylistLoadLimit: 200
-    playerUpdateInterval: 3
+    bufferDurationMs: 400
+    frameBufferDurationMs: 3000
+    youtubePlaylistLoadLimit: 10
+    playerUpdateInterval: 10
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
     gc-warnings: true
