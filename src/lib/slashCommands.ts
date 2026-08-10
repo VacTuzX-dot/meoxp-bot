@@ -17,6 +17,11 @@ import {
   type ThailandPostTrackingErrorCode,
 } from "./ThailandPostTracker";
 import {
+  fetchFlashTracking,
+  FlashTrackingError,
+  type FlashTrackingErrorCode,
+} from "./FlashTracker";
+import {
   attachHelpCollector,
   createHelpEmbed,
   createHelpRow,
@@ -37,6 +42,17 @@ export function getSlashCommandDefinitions() {
           .setRequired(true)
           .setMinLength(13)
           .setMaxLength(13),
+      ),
+    new SlashCommandBuilder()
+      .setName("flashtrack")
+      .setDescription("ตรวจสอบสถานะพัสดุ Flash Express")
+      .addStringOption((option) =>
+        option
+          .setName("tracking")
+          .setDescription("หมายเลขพัสดุ Flash Express")
+          .setRequired(true)
+          .setMinLength(6)
+          .setMaxLength(20),
       ),
     new SlashCommandBuilder()
       .setName("setup")
@@ -286,6 +302,60 @@ const TRACKING_ERROR_MESSAGES: Record<ThailandPostTrackingErrorCode, string> = {
   INVALID_RESPONSE: "❌ Thailand Post API ส่งข้อมูลกลับมาไม่ถูกต้อง",
 };
 
+const FLASH_TRACKING_ERROR_MESSAGES: Record<FlashTrackingErrorCode, string> = {
+  INVALID_TRACKING_NUMBER: "❌ กรุณาระบุหมายเลขพัสดุ",
+  RATE_LIMITED: "⏳ ระบบ Flash tracking ถูกจำกัดการใช้งานชั่วคราว ลองใหม่ภายหลัง",
+  NOT_FOUND: "🔎 ไม่พบข้อมูลของหมายเลขพัสดุนี้",
+  TIMEOUT: "⏳ Flash tracking API ตอบกลับช้าเกินไป กรุณาลองใหม่อีกครั้ง",
+  UPSTREAM_FAILURE: "❌ ไม่สามารถตรวจสอบสถานะพัสดุได้ในขณะนี้",
+  INVALID_RESPONSE: "❌ Flash tracking API ส่งข้อมูลกลับมาไม่ถูกต้อง",
+};
+
+async function handleFlashTrackSlash(interaction: ChatInputCommandInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const result = await fetchFlashTracking(
+      interaction.options.getString("tracking", true),
+    );
+    const history = result.events
+      .slice(-5)
+      .reverse()
+      .map((event) => `**${event.routedAt ?? "ไม่ระบุเวลา"}**\n${event.message ?? "ไม่มีรายละเอียด"}`)
+      .join("\n\n");
+
+    const embed = new EmbedBuilder()
+      .setColor(0xfacc15)
+      .setTitle(`📦 ${result.trackingNo}`)
+      .setDescription(
+        `${result.srcProvince ?? "ไม่ระบุ"} ➜ ${result.dstProvince ?? "ไม่ระบุ"}`,
+      )
+      .addFields(
+        {
+          name: "สถานะ",
+          value: truncate(result.statusText ?? "ไม่ระบุ", 1_024),
+          inline: true,
+        },
+        {
+          name: "ผู้รับพัสดุ",
+          value: truncate(result.signer ?? "รอนำส่ง", 1_024),
+          inline: true,
+        },
+        { name: "📋 ประวัติล่าสุด", value: truncate(history || "ไม่มีข้อมูล", 1_024) },
+      )
+      .setFooter({ text: "ข้อมูลจาก Flash Express" })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    const code =
+      error instanceof FlashTrackingError ? error.code : "UPSTREAM_FAILURE";
+    // WHY: log only the error class; tracking numbers may be PII.
+    console.error(`[FlashTracker] request failed: ${code}`);
+    await interaction.editReply({ content: FLASH_TRACKING_ERROR_MESSAGES[code] });
+  }
+}
+
 function truncate(value: string, maxLength: number): string {
   return value.length <= maxLength
     ? value
@@ -380,5 +450,9 @@ export async function handleSlashCommand(
 
   if (interaction.commandName === "posttrack") {
     await handlePostTrackSlash(interaction);
+  }
+
+  if (interaction.commandName === "flashtrack") {
+    await handleFlashTrackSlash(interaction);
   }
 }
