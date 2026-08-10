@@ -51,7 +51,7 @@ const command: Command = {
          return;
       }
 
-      let watchedMessage;
+      let watchedMessage: Message;
       try {
         watchedMessage = await message.channel.messages.fetch(watchedMessageId);
       } catch (err) {

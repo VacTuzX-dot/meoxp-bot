@@ -2,6 +2,7 @@ import {
   ChannelType,
   ChatInputCommandInteraction,
   Client,
+  EmbedBuilder,
   Message,
   PermissionsBitField,
   SlashCommandBuilder,
@@ -10,6 +11,11 @@ import { ExtendedClient } from "../types";
 import { autoRoleManager } from "./AutoRoleManager";
 import { goldPriceManager } from "./GoldPriceManager";
 import { fetchGoldPrice } from "./GoldPriceFetcher";
+import {
+  fetchThailandPostTracking,
+  ThailandPostTrackingError,
+  type ThailandPostTrackingErrorCode,
+} from "./ThailandPostTracker";
 import {
   attachHelpCollector,
   createHelpEmbed,
@@ -21,6 +27,17 @@ export function getSlashCommandDefinitions() {
     new SlashCommandBuilder()
       .setName("help")
       .setDescription("Open the help menu"),
+    new SlashCommandBuilder()
+      .setName("posttrack")
+      .setDescription("ตรวจสอบสถานะพัสดุไปรษณีย์ไทย")
+      .addStringOption((option) =>
+        option
+          .setName("tracking")
+          .setDescription("หมายเลขพัสดุ เช่น EY145587896TH")
+          .setRequired(true)
+          .setMinLength(13)
+          .setMaxLength(13),
+      ),
     new SlashCommandBuilder()
       .setName("setup")
       .setDescription("Configure auto role for new members")
@@ -257,6 +274,91 @@ async function handleGoldSetupSlash(
   });
 }
 
+const TRACKING_ERROR_MESSAGES: Record<ThailandPostTrackingErrorCode, string> = {
+  INVALID_TRACKING_NUMBER:
+    "❌ รูปแบบหมายเลขพัสดุไม่ถูกต้อง ตัวอย่าง: `EY145587896TH`",
+  MISSING_TOKEN: "❌ ระบบยังไม่ได้ตั้งค่า `THAILAND_POST_TOKEN`",
+  UNAUTHORIZED: "❌ Thailand Post ไม่ยอมรับโทเค็นของระบบ กรุณาแจ้งผู้ดูแล",
+  RATE_LIMITED: "⏳ โควตา Thailand Post API วันนี้เต็มแล้ว กรุณาลองใหม่ภายหลัง",
+  NOT_FOUND: "🔎 ไม่พบข้อมูลของหมายเลขพัสดุนี้",
+  TIMEOUT: "⏳ Thailand Post API ตอบกลับช้าเกินไป กรุณาลองใหม่อีกครั้ง",
+  UPSTREAM_FAILURE: "❌ ไม่สามารถตรวจสอบสถานะพัสดุได้ในขณะนี้",
+  INVALID_RESPONSE: "❌ Thailand Post API ส่งข้อมูลกลับมาไม่ถูกต้อง",
+};
+
+function truncate(value: string, maxLength: number): string {
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, maxLength - 1)}…`;
+}
+
+async function handlePostTrackSlash(
+  interaction: ChatInputCommandInteraction,
+) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const result = await fetchThailandPostTracking(
+      interaction.options.getString("tracking", true),
+    );
+    const latest = result.events.at(-1)!;
+    const latestDetail =
+      latest.detail ?? latest.statusDescription ?? latest.status ?? "ไม่มีรายละเอียด";
+    const location = [latest.location, latest.postcode]
+      .filter(Boolean)
+      .join(" ");
+    const history = result.events
+      .slice(-5)
+      .reverse()
+      .map((event) => {
+        const detail =
+          event.detail ?? event.statusDescription ?? event.status ?? "ไม่มีรายละเอียด";
+        return `**${event.statusDate ?? "ไม่ระบุเวลา"}**\n${detail}`;
+      })
+      .join("\n\n");
+
+    const embed = new EmbedBuilder()
+      .setColor(0xed1c24)
+      .setTitle(`📦 ${result.barcode}`)
+      .setURL(
+        `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(result.barcode)}`,
+      )
+      .setDescription(truncate(latestDetail, 4_096))
+      .addFields(
+        {
+          name: "📍 สถานที่",
+          value: truncate(location || "ไม่ระบุ", 1_024),
+          inline: true,
+        },
+        {
+          name: "🕐 อัปเดตล่าสุด",
+          value: truncate(latest.statusDate ?? "ไม่ระบุ", 1_024),
+          inline: true,
+        },
+        {
+          name: "📋 ประวัติล่าสุด",
+          value: truncate(history, 1_024),
+        },
+      )
+      .setFooter({
+        text: result.quota
+          ? `Thailand Post API วันนี้ ${result.quota.used}/${result.quota.limit}`
+          : "ข้อมูลจาก Thailand Post",
+      })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    const code =
+      error instanceof ThailandPostTrackingError
+        ? error.code
+        : "UPSTREAM_FAILURE";
+    // WHY: log only the error class; tracking numbers and upstream bodies may contain PII.
+    console.error(`[ThailandPostTracker] request failed: ${code}`);
+    await interaction.editReply({ content: TRACKING_ERROR_MESSAGES[code] });
+  }
+}
+
 export async function handleSlashCommand(
   interaction: ChatInputCommandInteraction,
   _client: ExtendedClient,
@@ -273,5 +375,10 @@ export async function handleSlashCommand(
 
   if (interaction.commandName === "setupgold") {
     await handleGoldSetupSlash(interaction);
+    return;
+  }
+
+  if (interaction.commandName === "posttrack") {
+    await handlePostTrackSlash(interaction);
   }
 }
