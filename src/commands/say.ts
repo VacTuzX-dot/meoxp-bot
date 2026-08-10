@@ -1,7 +1,7 @@
 import { Message } from "discord.js";
 import { ExtendedClient, Command } from "../types";
 import { getPlayer, isLavalinkReady } from "../lib/MoodenglinkManager";
-import * as googleTTS from "google-tts-api";
+import { getGoogleTtsUrl } from "../lib/GoogleTtsUrl";
 
 const command: Command = {
   name: "say",
@@ -41,11 +41,7 @@ const command: Command = {
     const voiceChannelId = member.voice.channel.id;
 
     try {
-      const ttsUrl = googleTTS.getAudioUrl(text, {
-        lang: "th",
-        slow: false,
-        host: "https://translate.google.com",
-      });
+      const ttsUrl = getGoogleTtsUrl(text, "th");
 
       const player = await getPlayer(
         client,
@@ -74,8 +70,9 @@ const command: Command = {
       const reply = await message.reply(`🗣️ "${text}"`);
       setTimeout(() => reply.delete().catch(() => {}), 5000);
     } catch (error) {
-      console.error("[TTS] Error:", error);
-      message.reply(`❌ เกิดข้อผิดพลาดค่ะนายท่าน: ${(error as Error).message}`);
+      const errorName = error instanceof Error ? error.name : "UnknownError";
+      console.error(`[TTS] request failed: ${errorName}`);
+      message.reply("❌ เกิดข้อผิดพลาดในการสร้างเสียงค่ะนายท่าน~");
     }
   },
 };

@@ -160,7 +160,7 @@ const command: Command = {
       }
 
       switch (interaction.customId) {
-        case "np_pause":
+        case "np_pause": {
           const isPaused = currentPlayer.paused;
           await currentPlayer.pause(!isPaused);
           await interaction.reply({
@@ -170,6 +170,7 @@ const command: Command = {
             ephemeral: true,
           });
           break;
+        }
 
         case "np_skip":
           await currentPlayer.skip();
@@ -202,7 +203,7 @@ const command: Command = {
           }
           break;
 
-        case "np_loop":
+        case "np_loop": {
           currentPlayer.setRepeatMode((currentPlayer.repeatMode + 1) % 3);
           const modes = [
             "➡️ ปิด Loop",
@@ -214,8 +215,9 @@ const command: Command = {
             ephemeral: true,
           });
           break;
+        }
 
-        case "np_queue":
+        case "np_queue": {
           const queueList = currentPlayer.queue
             .slice(0, 5)
             .map((item) => trackToSong(item as any));
@@ -235,6 +237,7 @@ const command: Command = {
             ephemeral: true,
           });
           break;
+        }
       }
     });
 

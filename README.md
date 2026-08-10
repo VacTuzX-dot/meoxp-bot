@@ -16,7 +16,7 @@ If you contribute to this repository, use feature branches and pull requests. Af
 - YouTube search-based playback and direct URL playback through Lavalink
 - Queue management with loop modes, shuffle, clear, and interactive control panels
 - Persistent join mode with automatic voice-channel cleanup when the bot is left alone
-- Thai and English text-to-speech commands powered by `google-tts-api`
+- Thai and English text-to-speech commands
 - Reaction Role mappings stored on disk with automatic role assignment on reaction add
 - Real-time Reaction Tracker messages that list users per emoji and update on reaction add and remove
 - Shared tracker bot messages that can render multiple emoji sections in one message
@@ -91,11 +91,18 @@ LAVALINK_HOST=lavalink
 LAVALINK_PORT=2333
 ```
 
+Required only for the `/posttrack` slash command:
+
+```env
+THAILAND_POST_TOKEN=your_thailand_post_track_api_token
+```
+
 Notes:
 
 - `TOKEN` is required by `src/index.ts`
 - `OWNER_ID` is used by the owner-only commands: `!!status`, `!!purge`, and `!!shell`
 - `LAVALINK_URL` and `LAVALINK_PASSWORD` are required by `src/lib/ShoukakuManager.ts`
+- `THAILAND_POST_TOKEN` must be created in the Thailand Post developer portal and must never be committed
 - If you use the provided `lavalink/application.yml`, its `LAVALINK_SERVER_PASSWORD` must match the bot's `LAVALINK_PASSWORD`
 
 ### Dashboard environment
@@ -215,6 +222,12 @@ Operational note:
 ## Commands
 
 Prefix: `!!`
+
+### Slash commands
+
+| Command | Access | What it does |
+| --- | --- | --- |
+| `/posttrack tracking:<number>` | Everyone | Shows the latest Thailand Post status and five recent events ephemerally |
 
 ### General
 

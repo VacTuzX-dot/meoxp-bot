@@ -76,7 +76,7 @@ const command: Command = {
       }
 
       // เช็คว่ามีข้อความอยู่ในห้องนี้ไหม
-      let targetMessage;
+      let targetMessage: Message;
       try {
         targetMessage = await message.channel.messages.fetch(messageId);
       } catch (err) {

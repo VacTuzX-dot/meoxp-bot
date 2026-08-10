@@ -57,7 +57,9 @@ const loadCommands = (): void => {
         console.log(`✅ Command loaded: ${command.name}`);
 
         if (command.aliases && Array.isArray(command.aliases)) {
-          command.aliases.forEach((alias) => aliases.set(alias, command.name));
+          command.aliases.forEach((alias) => {
+            aliases.set(alias, command.name);
+          });
         }
       }
     }
