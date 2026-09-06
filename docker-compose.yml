@@ -66,6 +66,26 @@ services:
       retries: 3
       start_period: 20s
 
+  tts-service:
+    image: gnomeddev/tts-service
+    container_name: meoxp-tts-service
+    restart: unless-stopped
+    labels:
+      - "com.meoxp.bot.project=meoxp-bot"
+      - "com.meoxp.bot.service=tts-service"
+    environment:
+      - IPV6_BLOCK=DISABLE
+      - LOG_LEVEL=INFO
+      - BIND_ADDR=0.0.0.0:20310
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-}
+    ports:
+      - "20310:20310"
+    networks:
+      - default
+      - lavalink_lavalink-net
+
 networks:
   lavalink_lavalink-net:
     external: true

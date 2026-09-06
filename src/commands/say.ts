@@ -1,11 +1,11 @@
-import { Message } from "discord.js";
-import { ExtendedClient, Command } from "../types";
-import { getPlayer, isLavalinkReady } from "../lib/MoodenglinkManager";
-import { getGoogleTtsUrl } from "../lib/GoogleTtsUrl";
+import type { Message } from "discord.js";
+import type { ExtendedClient, Command } from "../types";
+import { isLavalinkReady } from "../lib/MoodenglinkManager";
+import { ttsManager, MAX_TTS_TEXT_LENGTH } from "../lib/TtsManager";
 
 const command: Command = {
   name: "say",
-  aliases: ["tts", "speak"],
+  aliases: ["speak", "sayth"],
   description: "Text-to-Speech ภาษาไทย",
   async execute(
     message: Message,
@@ -27,8 +27,8 @@ const command: Command = {
 
     const text = args.join(" ");
 
-    if (text.length > 200) {
-      message.reply("📝 ข้อความยาวเกินไปค่ะนายท่าน สูงสุด 200 ตัวอักษรนะคะ~");
+    if (text.length > MAX_TTS_TEXT_LENGTH) {
+      message.reply(`📝 ข้อความยาวเกินไปค่ะนายท่าน สูงสุด ${MAX_TTS_TEXT_LENGTH} ตัวอักษรนะคะ~`);
       return;
     }
 
@@ -41,31 +41,19 @@ const command: Command = {
     const voiceChannelId = member.voice.channel.id;
 
     try {
-      const ttsUrl = getGoogleTtsUrl(text, "th");
-
-      const player = await getPlayer(
-        client,
+      const res = await ttsManager.enqueue(client, {
         guildId,
         voiceChannelId,
-        message.channel.id,
-      );
-      if (!player) {
-        message.reply("😢 หนูเข้าห้องไม่ได้ค่ะนายท่าน~");
+        textChannelId: message.channel.id,
+        userId: message.author.id,
+        text,
+        explicitVoice: "th",
+      });
+
+      if (!res.success) {
+        message.reply(`❌ ${res.reason || "ไม่สามารถพูดข้อความได้ค่ะนายท่าน~"}`);
         return;
       }
-
-      const result = await client.manager.search(ttsUrl);
-
-      if (
-        result.loadType === "error" ||
-        result.loadType === "empty" ||
-        result.tracks.length === 0
-      ) {
-        message.reply("❌ ไม่สามารถโหลดเสียงได้ค่ะนายท่าน~");
-        return;
-      }
-
-      await player.play({ track: result.tracks[0] });
 
       const reply = await message.reply(`🗣️ "${text}"`);
       setTimeout(() => reply.delete().catch(() => {}), 5000);

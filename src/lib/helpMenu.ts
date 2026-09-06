@@ -43,10 +43,11 @@ export const helpCategories: Record<
   },
   tts: {
     title: "TTS",
-    description: "พิมพ์ข้อความแล้วให้บอทอ่านออกเสียง",
+    description: "ระบบอ่านข้อความ Text-to-Speech และ Auto-read ประจำห้องแชท",
     fields: [
-      { name: "Thai", value: "`!!say <message>`", inline: true },
-      { name: "English", value: "`!!saye <text>`", inline: true },
+      { name: "Auto-read", value: "`!!tts setup` `!!tts join` `!!tts leave`", inline: true },
+      { name: "Customization", value: "`!!tts voice` `!!tts speed`", inline: true },
+      { name: "Quick Speak", value: "`!!say <ข้อความ>` `!!saye <text>`", inline: false },
     ],
   },
   admin: {

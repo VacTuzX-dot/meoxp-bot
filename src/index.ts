@@ -110,6 +110,7 @@ const loadEvents = (): void => {
   const { reactionTrackerManager } = require("./lib/ReactionTrackerManager");
   const { autoRoleManager } = require("./lib/AutoRoleManager");
   const { goldPriceManager } = require("./lib/GoldPriceManager");
+  const { ttsManager } = require("./lib/TtsManager");
   try {
     console.log(
       "[Debug #15] [Stage: restart reload] Initializing NoSQL managers...",
@@ -118,6 +119,7 @@ const loadEvents = (): void => {
     await reactionTrackerManager.init();
     await autoRoleManager.init();
     await goldPriceManager.init();
+    await ttsManager.init();
     console.log(
       "[Debug #15] [Stage: restart reload] NoSQL managers initialized successfully.",
     );

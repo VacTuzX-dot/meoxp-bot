@@ -28,7 +28,7 @@ lavalink:
       soundcloud: true
       twitch: false
       vimeo: false
-      http: false
+      http: true
       local: false
     filters:
       volume: true

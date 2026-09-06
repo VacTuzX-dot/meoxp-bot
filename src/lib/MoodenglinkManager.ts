@@ -141,6 +141,9 @@ export function createManager(client: Client): Moodenglink {
   });
 
   manager.on("trackStart", async (player, track) => {
+    // WHY: TTS tracks should not overwrite now playing embeds or presence
+    if (track.userData?.isTts) return;
+
     const song = trackToSong(track);
     console.log("[PLAY] Now playing:", song.title);
     updateBotPresence(ext, true);

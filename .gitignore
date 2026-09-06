@@ -18,9 +18,12 @@ __pycache__/
 *$py.class
 *.so
 
-# IDE
+# IDE & Agents
 .vscode/
 .idea/
+.agents/
+.claude/
+skills-lock.json
 
 # OS
 .DS_Store
@@ -29,6 +32,11 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Data & SQLite / NeDB
+data/
+*.db
+*.db~
 
 # Docker
 .docker/

@@ -1,11 +1,12 @@
 import {
   Events,
-  VoiceState,
+  type VoiceState,
   ActivityType,
   PresenceUpdateStatus,
 } from "discord.js";
-import { ExtendedClient, defineEvent } from "../types";
+import { type ExtendedClient, defineEvent } from "../types";
 import { destroyPlayer } from "../lib/MoodenglinkManager";
+import { ttsManager } from "../lib/TtsManager";
 
 // Store timeout IDs per guild
 const leaveTimeouts = new Map<string, NodeJS.Timeout>();
@@ -51,6 +52,7 @@ const event = defineEvent({
 
       // Clear the queue when bot is disconnected
       destroyPlayer(client, oldState.guild.id);
+      ttsManager.clearGuildSession(oldState.guild.id);
 
       // Clear any leave timeouts
       if (leaveTimeouts.has(oldState.guild.id)) {
@@ -97,6 +99,7 @@ const event = defineEvent({
             if (currentMembers === 0) {
               console.log("[VOICE] Channel still empty, leaving...");
               destroyPlayer(client, oldState.guild.id);
+              ttsManager.clearGuildSession(oldState.guild.id);
             }
           }
           leaveTimeouts.delete(oldState.guild.id);
