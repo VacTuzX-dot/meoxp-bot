@@ -73,13 +73,16 @@ services:
     labels:
       - "com.meoxp.bot.project=meoxp-bot"
       - "com.meoxp.bot.service=tts-service"
+    volumes:
+      - ./gcp.dummy.json:/gcp.json:ro
     environment:
       - IPV6_BLOCK=DISABLE
       - LOG_LEVEL=INFO
       - BIND_ADDR=0.0.0.0:20310
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
-      - AWS_REGION=${AWS_REGION:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp.json
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-dummy}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
     ports:
       - "20310:20310"
     networks:
