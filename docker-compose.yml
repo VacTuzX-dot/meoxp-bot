@@ -27,8 +27,10 @@ services:
         reservations:
           memory: 256M
     networks:
-      - default
-      - lavalink_lavalink-net
+      default:
+        mac_address: 0a:42:6d:78:00:01
+      lavalink_lavalink-net:
+        mac_address: 0a:42:6d:78:00:02
     healthcheck:
       test:
         [
@@ -54,6 +56,9 @@ services:
         - "com.meoxp.bot.project=meoxp-bot"
         - "com.meoxp.bot.service=dashboard"
     container_name: meoxp-dashboard
+    networks:
+      default:
+        mac_address: 0a:42:6d:78:00:03
     restart: unless-stopped
     labels:
       - "com.meoxp.bot.project=meoxp-bot"
