@@ -12,9 +12,13 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - WEB
-      - TVHTML5_SIMPLY
       - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+      - TVHTML5_SIMPLY
+      - TV
+    oauth:
+      enabled: true
     skipTrackOnError: true
 
 lavalink:
@@ -60,6 +64,7 @@ logging:
   level:
     root: WARN
     lavalink: INFO
+    dev.lavalink.youtube: INFO
 
   logback:
     rollingpolicy:

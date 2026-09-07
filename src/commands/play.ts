@@ -56,7 +56,9 @@ const command: Command = {
       }
 
       if (result.loadType === "error") {
-        await statusMsg.edit("❌ เกิดข้อผิดพลาดในการค้นหาค่ะ 🥺");
+        console.error("[PLAY] Search error:", result.exception);
+        const reason = result.exception?.message ? `: ${result.exception.message}` : "";
+        await statusMsg.edit(`❌ เกิดข้อผิดพลาดในการค้นหาค่ะ 🥺${reason}`);
         return;
       }
 

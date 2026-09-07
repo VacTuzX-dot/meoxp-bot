@@ -172,8 +172,19 @@ export function createManager(client: Client): Moodenglink {
     }
   });
 
-  manager.on("trackError", (player, track, payload) => {
+  manager.on("trackError", async (player, track, payload) => {
     console.error("[PLAYER] Track error:", track.title, payload.exception?.message);
+    if (!player.textChannel) return;
+    try {
+      const channel = await client.channels.fetch(player.textChannel);
+      if (channel && "send" in channel) {
+        let msg = `⚠️ ไม่สามารถเล่นเพลง **${track.title}** ได้ค่ะ`;
+        if (payload.exception?.message?.includes("Sign in to confirm")) {
+          msg += "\n🔒 YouTube ขอให้ยืนยันตัวตน (Sign in to confirm you're not a bot)";
+        }
+        await (channel as any).send(msg).catch(() => {});
+      }
+    } catch {}
   });
 
   manager.on("trackStuck", (player, track) => {
