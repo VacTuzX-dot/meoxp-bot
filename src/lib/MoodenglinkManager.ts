@@ -38,13 +38,31 @@ function validateEnv(): { host: string; port: number; password: string } {
   return { host, port, password };
 }
 
-// Format duration helper
+// Format duration helper (supports hours, mins, secs)
 export function formatDuration(seconds: number): string {
   if (!seconds || isNaN(seconds) || seconds < 0) return "0:00";
-  const mins = Math.floor(seconds / 60);
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
+
+// Progress bar helper
+export function createProgressBar(
+  current: number,
+  total: number,
+  length: number = 15
+): string {
+  if (!total || total <= 0) return "▬".repeat(length);
+  const progress = Math.min(Math.max(current / total, 0), 1);
+  const filledLength = Math.round(progress * length);
+  const emptyLength = length - filledLength;
+  return "▓".repeat(filledLength) + "░".repeat(emptyLength);
+}
+
 
 // Convert a moodenglink Track to the Song view used by embeds/dashboard
 export function trackToSong(track: Track): Song {
@@ -87,7 +105,7 @@ function createNowPlayingEmbed(player: Player, song: Song): EmbedBuilder {
   return embed;
 }
 
-function updateBotPresence(client: ExtendedClient, inVoice: boolean): void {
+export function updateBotPresence(client: ExtendedClient, inVoice: boolean): void {
   client.user?.setPresence({
     status: inVoice
       ? PresenceUpdateStatus.DoNotDisturb
@@ -174,21 +192,34 @@ export function createManager(client: Client): Moodenglink {
 
   manager.on("trackError", async (player, track, payload) => {
     console.error("[PLAYER] Track error:", track.title, payload.exception?.message);
-    if (!player.textChannel) return;
-    try {
-      const channel = await client.channels.fetch(player.textChannel);
-      if (channel && "send" in channel) {
-        let msg = `⚠️ ไม่สามารถเล่นเพลง **${track.title}** ได้ค่ะ`;
-        if (payload.exception?.message?.includes("Sign in to confirm")) {
-          msg += "\n🔒 YouTube ขอให้ยืนยันตัวตน (Sign in to confirm you're not a bot)";
+    if (player.textChannel) {
+      try {
+        const channel = await client.channels.fetch(player.textChannel);
+        if (channel && "send" in channel) {
+          let msg = `⚠️ ไม่สามารถเล่นเพลง **${track.title}** ได้ค่ะ`;
+          if (payload.exception?.message?.includes("Sign in to confirm")) {
+            msg += "\n🔒 YouTube ขอให้ยืนยันตัวตน (Sign in to confirm you're not a bot)";
+          }
+          await (channel as any).send(msg).catch(() => {});
         }
-        await (channel as any).send(msg).catch(() => {});
-      }
-    } catch {}
+      } catch {}
+    }
+
+    // Auto-advance if queue has more tracks and playback stopped
+    if (player.queue.length > 0 && !player.playing) {
+      player.play().catch((err: Error) => {
+        console.error("[PLAYER] Failed to play next track after error:", err.message);
+      });
+    }
   });
 
-  manager.on("trackStuck", (player, track) => {
-    console.log("[PLAYER] Track stuck, skipping:", track.title);
+  manager.on("trackStuck", async (player, track) => {
+    console.warn(`[PLAYER] ⚠️ Track stuck: "${track.title}", auto-skipping...`);
+    try {
+      await player.skip();
+    } catch (error) {
+      console.error("[PLAYER] Error skipping stuck track:", (error as Error).message);
+    }
   });
 
   manager.on("queueEnd", (player) => {

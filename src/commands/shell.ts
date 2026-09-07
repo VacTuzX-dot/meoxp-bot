@@ -12,7 +12,7 @@ const command: Command = {
     client: ExtendedClient
   ): Promise<void> {
     // Owner check
-    if (message.author.id !== process.env.OWNER_ID) {
+    if (!process.env.OWNER_ID || message.author.id !== process.env.OWNER_ID) {
       message.reply("⛔ ขอโทษนะคะ คุณไม่มีสิทธิ์ใช้คำสั่งนี้ค่ะ 🙏");
       return;
     }

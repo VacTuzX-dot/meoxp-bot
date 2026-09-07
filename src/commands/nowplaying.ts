@@ -8,30 +8,11 @@ import {
   ComponentType,
 } from "discord.js";
 import { ExtendedClient, Command } from "../types";
-import { trackToSong } from "../lib/MoodenglinkManager";
-
-// Create progress bar
-function createProgressBar(
-  current: number,
-  total: number,
-  length: number = 15
-): string {
-  if (!total || total === 0) return "▬".repeat(length);
-
-  const progress = Math.min(current / total, 1);
-  const filledLength = Math.round(progress * length);
-  const emptyLength = length - filledLength;
-
-  return "▓".repeat(filledLength) + "░".repeat(emptyLength);
-}
-
-// Format time
-function formatTime(seconds: number): string {
-  if (!seconds || isNaN(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
+import {
+  trackToSong,
+  formatDuration,
+  createProgressBar,
+} from "../lib/MoodenglinkManager";
 
 const command: Command = {
   name: "nowplaying",
@@ -57,8 +38,8 @@ const command: Command = {
     const position = player.position || 0;
     const duration = song.duration * 1000 || 0;
     const progressBar = createProgressBar(position, duration);
-    const currentTime = formatTime(position / 1000);
-    const totalTime = song.durationInfo || formatTime(song.duration);
+    const currentTime = formatDuration(position / 1000);
+    const totalTime = song.durationInfo || formatDuration(song.duration);
 
     const embed = new EmbedBuilder()
       .setTitle("🎵 Now Playing")

@@ -5,26 +5,11 @@ import {
   PresenceUpdateStatus,
 } from "discord.js";
 import { type ExtendedClient, defineEvent } from "../types";
-import { destroyPlayer } from "../lib/MoodenglinkManager";
+import { destroyPlayer, updateBotPresence } from "../lib/MoodenglinkManager";
 import { ttsManager } from "../lib/TtsManager";
 
 // Store timeout IDs per guild
 const leaveTimeouts = new Map<string, NodeJS.Timeout>();
-
-// Helper to update bot presence
-function updateBotPresence(client: ExtendedClient, inVoice: boolean): void {
-  client.user?.setPresence({
-    status: inVoice
-      ? PresenceUpdateStatus.DoNotDisturb
-      : PresenceUpdateStatus.Idle,
-    activities: [
-      {
-        name: inVoice ? "🎵 กำลังเล่นเพลง~" : "เปิดใช้เมนูพิมพ์ !!help ค่ะ 😊",
-        type: ActivityType.Listening,
-      },
-    ],
-  });
-}
 
 const event = defineEvent({
   name: Events.VoiceStateUpdate,

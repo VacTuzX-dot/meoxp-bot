@@ -14,12 +14,8 @@ plugins:
       url: "https://cipher.kikkia.dev"
     clients:
       - MUSIC
-      - IOS
       - TV
-      - ANDROID_VR
-      - WEB
-      - WEBEMBEDDED
-      - TVHTML5_SIMPLY
+      - IOS
     oauth:
       enabled: true
       refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
@@ -52,7 +48,7 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 400
+    bufferDurationMs: 1500
     frameBufferDurationMs: 5000
     youtubePlaylistLoadLimit: 50
     playerUpdateInterval: 5
