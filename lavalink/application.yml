@@ -12,13 +12,15 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
+      - TV
       - ANDROID_VR
       - WEB
       - WEBEMBEDDED
       - TVHTML5_SIMPLY
-      - TV
     oauth:
       enabled: true
+      refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
+      skipInitialization: true
     skipTrackOnError: true
 
 lavalink:
