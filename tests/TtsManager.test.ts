@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   sanitizeTtsText,
   detectLanguage,
+  normalizeVoice,
   buildTtsServiceUrl,
   MAX_TTS_TEXT_LENGTH,
   TtsManager,
@@ -36,11 +37,33 @@ test("sanitizeTtsText returns empty string on empty or whitespace-only input", (
   assert.equal(sanitizeTtsText("https://only-url.com"), "");
 });
 
-test("detectLanguage correctly detects Thai and non-Thai text", () => {
+test("detectLanguage correctly detects Thai, Japanese, Chinese, and English scripts", () => {
   assert.equal(detectLanguage("สวัสดีครับ"), "th");
-  assert.equal(detectLanguage("Hello world"), "en");
   assert.equal(detectLanguage("Hello สวัสดี"), "th");
+  assert.equal(detectLanguage("こんにちは"), "ja");
+  assert.equal(detectLanguage("ラーメンを食べます"), "ja");
+  assert.equal(detectLanguage("テスト"), "ja");
+  assert.equal(detectLanguage("你好世界"), "zh-CN");
+  assert.equal(detectLanguage("谢谢大家"), "zh-CN");
+  assert.equal(detectLanguage("Hello world"), "en");
   assert.equal(detectLanguage("12345!"), "en");
+});
+
+test("normalizeVoice maps language aliases accurately", () => {
+  assert.equal(normalizeVoice("th"), "th");
+  assert.equal(normalizeVoice("THAI"), "th");
+  assert.equal(normalizeVoice("ja"), "ja");
+  assert.equal(normalizeVoice("jp"), "ja");
+  assert.equal(normalizeVoice("Japanese"), "ja");
+  assert.equal(normalizeVoice("zh"), "zh-CN");
+  assert.equal(normalizeVoice("cn"), "zh-CN");
+  assert.equal(normalizeVoice("Chinese"), "zh-CN");
+  assert.equal(normalizeVoice("zh-cn"), "zh-CN");
+  assert.equal(normalizeVoice("mandarin"), "zh-CN");
+  assert.equal(normalizeVoice("en"), "en");
+  assert.equal(normalizeVoice("eng"), "en");
+  assert.equal(normalizeVoice("english"), "en");
+  assert.equal(normalizeVoice("fr"), "fr");
 });
 
 test("buildTtsServiceUrl generates well-formed URL with valid parameters", () => {

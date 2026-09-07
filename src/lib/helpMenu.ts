@@ -47,7 +47,7 @@ export const helpCategories: Record<
     fields: [
       { name: "Auto-read", value: "`!!tts setup` `!!tts join` `!!tts leave`", inline: true },
       { name: "Customization", value: "`!!tts voice` `!!tts speed`", inline: true },
-      { name: "Quick Speak", value: "`!!say <ข้อความ>` `!!saye <text>`", inline: false },
+      { name: "Quick Speak", value: "`!!say <ไทย>` `!!saye <English>` `!!sayj <日本語>` `!!sayc <中文>`", inline: false },
     ],
   },
   admin: {

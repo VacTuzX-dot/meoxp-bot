@@ -46,7 +46,7 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 1000
+    bufferDurationMs: 400
     frameBufferDurationMs: 5000
     youtubePlaylistLoadLimit: 50
     playerUpdateInterval: 5
@@ -54,8 +54,8 @@ lavalink:
     soundcloudSearchEnabled: true
     gc-warnings: true
     trackStuckThresholdMs: 10000
-    resamplingQuality: HIGH
-    opusEncodingQuality: 10
+    resamplingQuality: MEDIUM
+    opusEncodingQuality: 8
     useSeekGhosting: true
 
 logging:

@@ -89,11 +89,61 @@ export function sanitizeTtsText(raw: string): string {
   return text;
 }
 
+export type SupportedTtsLanguage = "th" | "ja" | "zh-CN" | "en";
+
 /**
- * Automatically detect if text contains Thai script.
+ * Automatically detect language script in text.
+ * Priority:
+ * 1. Thai: [\u0E00-\u0E7F]
+ * 2. Japanese Kana (Hiragana & Katakana): [\u3040-\u309F\u30A0-\u30FF]
+ * 3. Chinese Hanzi (CJK Unified Ideographs): [\u4E00-\u9FFF]
+ * 4. Fallback: en
  */
-export function detectLanguage(text: string): "th" | "en" {
-  return /[\u0E00-\u0E7F]/.test(text) ? "th" : "en";
+export function detectLanguage(text: string): SupportedTtsLanguage {
+  if (/[\u0E00-\u0E7F]/.test(text)) {
+    return "th";
+  }
+  // Japanese Hiragana or Katakana
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) {
+    return "ja";
+  }
+  // Chinese Hanzi (without Japanese Kana)
+  if (/[\u4E00-\u9FFF]/.test(text)) {
+    return "zh-CN";
+  }
+  return "en";
+}
+
+/**
+ * Normalize voice / language aliases to supported gTTS / tts-service language codes.
+ */
+export function normalizeVoice(voice: string): string {
+  const lower = voice.trim().toLowerCase();
+  switch (lower) {
+    case "th":
+    case "thai":
+      return "th";
+    case "ja":
+    case "jp":
+    case "japan":
+    case "japanese":
+      return "ja";
+    case "zh":
+    case "cn":
+    case "chinese":
+    case "zh-cn":
+    case "zh_cn":
+    case "mandarin":
+      return "zh-CN";
+    case "en":
+    case "eng":
+    case "english":
+    case "us":
+    case "uk":
+      return "en";
+    default:
+      return voice;
+  }
 }
 
 /**
@@ -111,9 +161,10 @@ export function buildTtsServiceUrl(params: {
     process.env.TTS_SERVICE_URL ||
     "http://tts-service:20310";
 
+  const lang = normalizeVoice(params.lang || "th");
   const url = new URL("/tts", baseUrl);
   url.searchParams.set("text", params.text);
-  url.searchParams.set("lang", params.lang || "th");
+  url.searchParams.set("lang", lang);
   url.searchParams.set("mode", params.mode || process.env.TTS_DEFAULT_MODE || "gTTS");
   url.searchParams.set("speaking_rate", String(params.speed ?? DEFAULT_TTS_SPEED));
   url.searchParams.set("preferred_format", "mp3");
@@ -228,8 +279,9 @@ export class TtsManager {
   }
 
   public async setUserVoice(userId: string, voice: string): Promise<boolean> {
+    const normalized = normalizeVoice(voice);
     const current = this.userConfigs.get(userId) || { type: "user", userId };
-    current.voice = voice;
+    current.voice = normalized;
 
     return new Promise((resolve) => {
       this.db.update(
@@ -321,11 +373,13 @@ export class TtsManager {
     const userSetting = this.getUserConfig(item.userId);
     const guildSetting = this.getGuildConfig(item.guildId);
 
-    const voice =
+    const rawVoice =
       item.explicitVoice ||
       userSetting?.voice ||
       guildSetting?.defaultVoice ||
       detectLanguage(sanitized);
+
+    const voice = normalizeVoice(rawVoice);
 
     const speed =
       item.explicitSpeed ??
@@ -371,6 +425,11 @@ export class TtsManager {
         const item = queue.shift();
         if (item) {
           await this.playTtsItem(client, item);
+          // WHY: Add a small delay between consecutive TTS items so Discord voice client
+          // can finish rendering trailing audio packets and prevent speech overlap/stutter.
+          if (queue.length > 0) {
+            await new Promise((r) => setTimeout(r, 200));
+          }
         }
       }
     } finally {
@@ -380,7 +439,8 @@ export class TtsManager {
       if (queue && queue.length > 0) {
         this.processQueue(client, guildId).catch(() => {});
       } else {
-        // Queue finished -> check if there is an interrupted music track to resume
+        // WHY: Allow Discord jitter buffer to drain trailing TTS packets before resuming music
+        await new Promise((r) => setTimeout(r, 200));
         await this.resumeInterruptedMusic(client, guildId);
       }
     }

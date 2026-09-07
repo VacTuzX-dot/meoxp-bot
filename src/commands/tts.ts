@@ -5,6 +5,7 @@ import {
   MIN_TTS_SPEED,
   MAX_TTS_SPEED,
   DEFAULT_TTS_SPEED,
+  normalizeVoice,
 } from "../lib/TtsManager";
 import { getPlayer, destroyPlayer, isLavalinkReady } from "../lib/MoodenglinkManager";
 
@@ -126,15 +127,22 @@ const command: Command = {
       const targetVoice = args[1]?.toLowerCase();
       if (!targetVoice) {
         const userConfig = ttsManager.getUserConfig(message.author.id);
-        const currentVoice = userConfig?.voice || "Auto (ไทย/อังกฤษอัตโนมัติ)";
+        const currentVoice = userConfig?.voice || "Auto (ตรวจจับภาษาอัตโนมัติ)";
         message.reply(
-          `🗣️ เสียงที่คุณใช้งานอยู่คือ: **${currentVoice}**\n💡 เปลี่ยนเสียงได้โดยพิมพ์ \`!!tts voice th\` หรือ \`!!tts voice en\``
+          `🗣️ เสียงที่คุณใช้งานอยู่คือ: **${currentVoice}**\n💡 ภาษาที่รองรับ: \`th\` (ไทย), \`en\` (อังกฤษ), \`ja\` (ญี่ปุ่น), \`zh\` (จีน)\nเช่น \`!!tts voice ja\` หรือ \`!!tts voice auto\` เพื่อกลับไปตรวจจับอัตโนมัติค่ะ~`
         );
         return;
       }
 
-      await ttsManager.setUserVoice(message.author.id, targetVoice);
-      message.reply(`✅ บันทึกเสียงพูดของคุณเป็น **${targetVoice}** เรียบร้อยแล้วค่ะ~`);
+      if (targetVoice === "auto" || targetVoice === "default" || targetVoice === "reset") {
+        await ttsManager.setUserVoice(message.author.id, "");
+        message.reply("✅ รีเซ็ตการตั้งค่าเสียงของคุณกลับเป็น **Auto (ตรวจจับภาษาอัตโนมัติ)** เรียบร้อยแล้วค่ะ~");
+        return;
+      }
+
+      const normalized = normalizeVoice(targetVoice);
+      await ttsManager.setUserVoice(message.author.id, normalized);
+      message.reply(`✅ บันทึกเสียงพูดของคุณเป็น **${normalized}** เรียบร้อยแล้วค่ะ~`);
       return;
     }
 
@@ -185,10 +193,12 @@ const command: Command = {
         {
           name: "⚙️ การตั้งค่าส่วนตัว",
           value:
-            "`!!tts voice [th/en]` - ตั้งค่าภาษาหรือเสียงพูดของคุณ\n" +
+            "`!!tts voice [th/en/ja/zh/auto]` - ตั้งค่าภาษาหรือเสียงพูดของคุณ\n" +
             "`!!tts speed [0.5-2.0]` - ปรับความเร็วในการพูดของคุณ\n" +
-            "`!!say <ข้อความ>` - สั่งให้บอทพูดข้อความภาษาไทยรายครั้ง\n" +
-            "`!!saye <ข้อความ>` - สั่งให้บอทพูดข้อความภาษาอังกฤษรายครั้ง",
+            "`!!say <ข้อความ>` - สั่งให้บอทพูดภาษาไทย\n" +
+            "`!!saye <ข้อความ>` - สั่งให้บอทพูดภาษาอังกฤษ\n" +
+            "`!!sayj <ข้อความ>` - สั่งให้บอทพูดภาษาญี่ปุ่น\n" +
+            "`!!sayc <ข้อความ>` - สั่งให้บอทพูดภาษาจีน",
         },
         {
           name: "📊 สถานะปัจจุบันของเซิร์ฟเวอร์",
