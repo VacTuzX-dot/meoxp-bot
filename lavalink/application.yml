@@ -10,8 +10,11 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
+    remoteCipher:
+      url: "https://cipher.kikkia.dev"
     clients:
       - MUSIC
+      - IOS
       - TV
       - ANDROID_VR
       - WEB
@@ -25,7 +28,7 @@ plugins:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:b33460b38ad13b5cd07da75e46444397cf0ea2df"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:f45bbb7aebfcbc1c553769e04af6cd43afa8b7c3"
       repository: "https://maven.lavalink.dev/snapshots"
       snapshot: true
   server:
