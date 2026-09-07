@@ -12,13 +12,14 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - TVHTML5EMBEDDED
-      - IOS
+      - WEB
+      - TVHTML5_SIMPLY
+      - ANDROID_VR
     skipTrackOnError: true
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       snapshot: false
   server:
     password: ${LAVALINK_SERVER_PASSWORD}
