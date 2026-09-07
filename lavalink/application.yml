@@ -41,16 +41,16 @@ lavalink:
       rotation: true
       channelMix: true
       lowPass: true
-    bufferDurationMs: 400
-    frameBufferDurationMs: 3000
-    youtubePlaylistLoadLimit: 10
-    playerUpdateInterval: 10
+    bufferDurationMs: 1000
+    frameBufferDurationMs: 5000
+    youtubePlaylistLoadLimit: 50
+    playerUpdateInterval: 5
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
     gc-warnings: true
     trackStuckThresholdMs: 10000
-    resamplingQuality: LOW
-    opusEncodingQuality: 5
+    resamplingQuality: HIGH
+    opusEncodingQuality: 10
     useSeekGhosting: true
 
 logging:

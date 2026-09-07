@@ -41,10 +41,19 @@ const command: Command = {
         return;
       }
 
-      const result = await client.manager.search(
+      let result = await client.manager.search(
         query,
         message.author.username
       );
+
+      // WHY: If YouTube Music search yields no results (e.g. non-music video, podcast, clip), fallback to standard YouTube
+      const isDirectUrl = /^https?:\/\//i.test(query);
+      if (!isDirectUrl && (result.loadType === "empty" || result.tracks.length === 0)) {
+        result = await client.manager.search(
+          { query, source: "youtube" },
+          message.author.username
+        );
+      }
 
       if (result.loadType === "error") {
         await statusMsg.edit("❌ เกิดข้อผิดพลาดในการค้นหาค่ะ 🥺");

@@ -137,6 +137,11 @@ export default function DashboardClient({
     });
 
     const fetchData = async () => {
+      // WHY: Modern web guidance - avoid unnecessary network calls & CPU cycles when page is hidden
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
       try {
         const [statusRes, statsRes, queuesRes] = await Promise.all([
           fetch(`${apiUrl}/api/status`, { cache: "no-store" }),
@@ -153,10 +158,20 @@ export default function DashboardClient({
       }
     };
 
-    const pollInterval = setInterval(fetchData, 10000); // Safe 10s refresh
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Tab brought to foreground: refresh immediately
+        fetchData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const pollInterval = setInterval(fetchData, 10000); // 10s refresh when active
+
     return () => {
       socket.disconnect();
       clearInterval(pollInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [apiUrl]);
 
@@ -298,7 +313,7 @@ export default function DashboardClient({
         </div>
 
         {/* Active Queues Table-like list */}
-        <Card className="border-border/40 bg-card/50">
+        <Card className="border-border/40 bg-card/50 [content-visibility:auto] [contain-intrinsic-size:auto_300px]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ListMusic className="h-5 w-5 text-muted-foreground" />

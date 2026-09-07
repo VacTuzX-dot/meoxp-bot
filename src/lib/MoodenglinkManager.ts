@@ -115,7 +115,13 @@ export function createManager(client: Client): Moodenglink {
 
   const manager = new Moodenglink({
     nodes: [{ host, port, password, identifier: "Main" }],
-    defaultSearchPlatform: "youtube",
+    // WHY: Use YouTube Music by default to retrieve official studio audio tracks rather than noisy video clips
+    defaultSearchPlatform: "youtubemusic",
+    // WHY: In-memory cache for search results & TTS URLs avoids redundant REST calls to Lavalink
+    searchCache: {
+      ttl: 300000,
+      maxSize: 500,
+    },
     send: (guildId, payload) =>
       client.guilds.cache.get(guildId)?.shard.send(payload),
   });
