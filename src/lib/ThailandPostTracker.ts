@@ -1,7 +1,6 @@
 const AUTH_API_URL =
   "https://trackapi.thailandpost.co.th/post/api/v1/authenticate/token";
-const TRACK_API_URL =
-  "https://trackapi.thailandpost.co.th/post/api/v1/track";
+const TRACK_API_URL = "https://trackapi.thailandpost.co.th/post/api/v1/track";
 const TRACKING_NUMBER_PATTERN = /^[A-Z]{2}\d{9}[A-Z]{2}$/;
 const REQUEST_TIMEOUT_MS = 10_000;
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000;

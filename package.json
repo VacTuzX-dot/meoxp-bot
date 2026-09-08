@@ -20,7 +20,7 @@
     "discord.js": "14.27.0",
     "dotenv": "16.6.1",
     "express": "5.2.1",
-    "moodenglink": "github:Moodeng-LAB/moodenglink#98b60305248439a6e98468ae8c275a6b65a55109",
+    "moodenglink": "github:Moodeng-LAB/moodenglink",
     "socket.io": "4.8.3",
     "systeminformation": "5.33.1"
   },
@@ -28,8 +28,8 @@
     "@biomejs/biome": "2.5.7",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^20.19.39",
-    "tsx": "^4.21.0",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@9.15.4",
