@@ -60,3 +60,12 @@ Task: replace `lavalink/application.yml` with a user-provided config, implement 
   2. 📌 GENERAL: back up remote config to a timestamped `.bak` before overwrite; it's the whole rollback plan for one command.
   3. Verify env-substituted secrets by behavior (token-refresh / node-ready log lines), never by printing them.
 - **Mistakes & dead ends:** initial `find / -name application.yml` over the whole server FS hung (120s+) → killed, replaced with scoped `docker inspect` mount lookup. `docker exec printenv` / grep-on-password-config blocked by auto-mode classifier → pivoted to behavior-based verification.
+
+## [01:36] Review fixes (Copilot PR #5) + redeploy
+
+- **Action:** 3 fixes on branch, redeploy, `git push`.
+  1. `logging.request.enabled` true→false (+ includePayload/ClientInfo false) — imported from template verbatim; was logging search/user metadata on high-volume prod + 1GB×25 disk.
+  2. `youtubePlaylistLoadLimit` 6→50 — template regressed the prior 50.
+  3. README: documented Lavalink-side `LAVALINK_SERVER_PASSWORD` + `YOUTUBE_OAUTH_REFRESH_TOKEN`, noting the `${VAR:}` empty fallback masks YouTube failures.
+- **Result:** YAML OK; redeploy verified (port 2333, `token refreshed successfully`, 0 errors, bot node reconnected). Commit `567b68b` pushed to PR #5.
+- **Lesson:** 📌 GENERAL: two of three review findings were template values I carried over without questioning (request logging, playlist limit). When merging a config, audit every non-secret value against the previous known-good, not just the port/password/token contract — defaults in a stranger's template are decisions, not neutral.
