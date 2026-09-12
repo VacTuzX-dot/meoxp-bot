@@ -43,7 +43,7 @@ lavalink:
     trackStuckThresholdMs: 15000
     useSeekGhosting: true
 
-    youtubePlaylistLoadLimit: 6
+    youtubePlaylistLoadLimit: 50
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
 
@@ -86,10 +86,13 @@ logging:
       maxHistory: 25
 
   request:
-    enabled: true
-    includeClientInfo: true
+    # WHY: disabled by default — playback/search traffic is high-volume and
+    # payloads/client info retain user + search metadata (privacy + disk pressure).
+    # Enable temporarily only when troubleshooting.
+    enabled: false
+    includeClientInfo: false
     includeHeaders: false
-    includePayload: true
+    includePayload: false
     includeQueryString: true
     maxPayloadLength: 10000
 

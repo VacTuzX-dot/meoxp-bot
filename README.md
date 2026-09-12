@@ -91,6 +91,17 @@ LAVALINK_HOST=lavalink
 LAVALINK_PORT=2333
 ```
 
+Lavalink-side (set in the Lavalink server's environment, not the bot's), used by the provided `lavalink/application.yml`:
+
+```env
+# Required — must match the bot's LAVALINK_PASSWORD
+LAVALINK_SERVER_PASSWORD=your_lavalink_password
+# Required for YouTube playback via OAuth. The config uses a `${VAR:}` empty
+# fallback, so if this is unset Lavalink still starts and looks healthy but
+# YouTube playback fails at runtime.
+YOUTUBE_OAUTH_REFRESH_TOKEN=your_youtube_oauth_refresh_token
+```
+
 Required only for the `/posttrack` slash command:
 
 ```env
