@@ -1,74 +1,184 @@
-server:
-  port: 2333
-  address: 0.0.0.0
-  http2:
-    enabled: false
-
-plugins:
-  youtube:
-    enabled: true
-    allowSearch: true
-    allowDirectVideoIds: true
-    allowDirectPlaylistIds: true
-    remoteCipher:
-      url: "https://cipher.kikkia.dev"
-    clients:
-      - MUSIC
-      - TV
-      - IOS
-    oauth:
-      enabled: true
-      refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
-      skipInitialization: true
-    skipTrackOnError: true
-
 lavalink:
   plugins:
     - dependency: "dev.lavalink.youtube:youtube-plugin:f45bbb7aebfcbc1c553769e04af6cd43afa8b7c3"
-      repository: "https://maven.lavalink.dev/snapshots"
       snapshot: true
+      repository: "https://maven.lavalink.dev/snapshots"
+
+    - dependency: com.github.topi314.lavasrc:lavasrc-plugin:4.8.3
+      repository: https://maven.lavalink.dev/releases
+
+    - dependency: com.github.topi314.lavasearch:lavasearch-plugin:1.0.0
+      repository: https://maven.lavalink.dev/releases
+
+    - dependency: com.github.topi314.lavalyrics:lavalyrics-plugin:1.1.0
+      repository: https://maven.lavalink.dev/releases
+
+    - dependency: me.duncte123:java-lyrics-plugin:1.6.6
+      repository: https://maven.lavalink.dev/releases
+    # ponytail: dropped Milin-Plugin — needs yt-dlp binary at /home/yourlink/bin/yt-dlp
+    # and external hardcoded API IPs not present in this deployment. Re-add when that infra exists.
+
   server:
+    # WHY: keep env substitution — never hardcode the Lavalink password into repo config.
+    # Must match the bot's LAVALINK_PASSWORD.
     password: ${LAVALINK_SERVER_PASSWORD}
+
+    nonAllocatingFrameBuffer: true
+    bufferDurationMs: 1000
+    frameBufferDurationMs: 5000
+
+    gcWarnings: true
+    opusEncodingQuality: 10
+    resamplingQuality: HIGH
+
+    playerUpdateInterval: 15
+    readTimeout: 60000
+    requestTimeout: 60000
+
+    timeouts:
+      connectTimeoutMs: 10000
+      connectionRequestTimeoutMs: 10000
+      socketTimeoutMs: 20000
+
+    trackStuckThresholdMs: 15000
+    useSeekGhosting: true
+
+    youtubePlaylistLoadLimit: 6
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
+
     sources:
-      youtube: false
-      bandcamp: false
-      soundcloud: true
-      twitch: false
-      vimeo: false
+      bandcamp: true
       http: true
       local: false
+      nico: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      youtube: false
+
     filters:
-      volume: true
+      channelMix: true
+      distortion: true
       equalizer: true
       karaoke: true
+      lowPass: true
+      rotation: true
       timescale: true
       tremolo: true
       vibrato: true
-      distortion: true
-      rotation: true
-      channelMix: true
-      lowPass: true
-    bufferDurationMs: 1500
-    frameBufferDurationMs: 5000
-    youtubePlaylistLoadLimit: 50
-    playerUpdateInterval: 5
-    youtubeSearchEnabled: true
-    soundcloudSearchEnabled: true
-    gc-warnings: true
-    trackStuckThresholdMs: 10000
-    resamplingQuality: MEDIUM
-    opusEncodingQuality: 8
-    useSeekGhosting: true
+      volume: true
 
 logging:
   file:
     path: ./logs/
+
   level:
-    root: WARN
+    dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO
     lavalink: INFO
+    root: INFO
+    com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: INFO
     dev.lavalink.youtube: INFO
 
   logback:
-    rollingpolicy:
-      max-file-size: 5MB
-      max-history: 3
+    rollingPolicy:
+      maxFileSize: 1GB
+      maxHistory: 25
+
+  request:
+    enabled: true
+    includeClientInfo: true
+    includeHeaders: false
+    includePayload: true
+    includeQueryString: true
+    maxPayloadLength: 10000
+
+metrics:
+  prometheus:
+    enabled: false
+    endpoint: /metrics
+
+plugins:
+  youtube:
+    enabled: true
+    allowDirectPlaylistIds: true
+    allowDirectVideoIds: true
+    allowSearch: true
+
+    pot:
+      token: ""
+      visitorData: ""
+
+    clients:
+      - TV
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+      - MWEB
+      - ANDROID_MUSIC
+      - TVHTML5_SIMPLY
+
+    oauth:
+      enabled: true
+      # WHY: keep env substitution — recent commits persist the refresh token via env.
+      # Empty token here would break YouTube OAuth playback.
+      refreshToken: "${YOUTUBE_OAUTH_REFRESH_TOKEN:}"
+      skipInitialization: true
+
+    remoteCipher:
+      url: https://cipher.kikkia.dev/
+      userAgent: lavalink-server
+
+  lyrics:
+    countryCode: th
+    geniusApiKey: ""
+
+  lavasearch:
+    sources:
+      - spotify
+      - youtube
+
+  lavasrc:
+    lyrics-sources:
+      youtube: true
+      lrcLib: false
+      spotify: false
+      deezer: false
+      yandexmusic: false
+      vkmusic: false
+
+    providers:
+      - ytsearch:"%ISRC%"
+      - ytsearch:%QUERY%
+
+    sources:
+      applemusic: false
+      deezer: false
+      flowerytts: false
+      spotify: false
+      yandexmusic: false
+      youtube: false
+
+    spotify:
+      albumLoadLimit: 10
+      clientId: ""
+      clientSecret: ""
+      countryCode: US
+      localFiles: false
+      playlistLoadLimit: 250
+      resolveArtistsInSearch: true
+
+sentry:
+  dsn: ""
+  environment: ""
+
+server:
+  address: 0.0.0.0
+  # WHY: keep 2333 — matches the running container's published port, the bot's
+  # LAVALINK_URL, wait-for-lavalink.js default, and docker-compose network wiring.
+  port: 2333
+
+  http2:
+    # WHY: keep disabled to match the known-good running config; shoukaku uses ws + h1.
+    enabled: false
