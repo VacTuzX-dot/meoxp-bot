@@ -32,6 +32,7 @@ const command: Command = {
   name: "server",
   aliases: ["status", "sysinfo", "sys"],
   description: "Show detailed server status",
+  dm: true,
   async execute(
     message: Message,
     args: string[],

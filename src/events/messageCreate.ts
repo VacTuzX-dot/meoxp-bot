@@ -8,7 +8,6 @@ const event = defineEvent({
   name: Events.MessageCreate,
   execute(message: Message, client: ExtendedClient) {
     if (message.author.bot) return;
-    if (!message.guild) return;
 
     // Handle bot commands
     if (message.content.startsWith(PREFIX)) {
@@ -24,6 +23,8 @@ const event = defineEvent({
         (aliasCommandName ? client.commands.get(aliasCommandName) : undefined);
 
       if (!command) return;
+      // WHY: most commands assume a guild (voice, roles, TTS); DMs reach only opt-in commands.
+      if (!message.guild && !command.dm) return;
 
       try {
         command.execute(message, args, client);
@@ -33,6 +34,8 @@ const event = defineEvent({
       }
       return;
     }
+
+    if (!message.guild) return;
 
     // Auto-read TTS for non-command messages
     const guildId = message.guild.id;

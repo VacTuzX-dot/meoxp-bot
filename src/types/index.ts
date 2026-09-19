@@ -14,6 +14,8 @@ export interface Command {
   name: string;
   aliases?: string[];
   description: string;
+  /** Allow running from DMs. Only for commands that never touch message.guild/member. */
+  dm?: boolean;
   execute: (
     message: Message,
     args: string[],
