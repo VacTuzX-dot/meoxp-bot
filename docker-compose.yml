@@ -20,6 +20,9 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
+      # Host identity for !!server (container otherwise reports its own ID + image distro)
+      - /etc/hostname:/host/hostname:ro
+      - /etc/os-release:/host/os-release:ro
     deploy:
       resources:
         limits:

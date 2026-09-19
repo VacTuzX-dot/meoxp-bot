@@ -1,6 +1,26 @@
+import { readFile } from "node:fs/promises";
 import { Message, EmbedBuilder } from "discord.js";
 import * as si from "systeminformation";
 import { ExtendedClient, Command } from "../types";
+
+export function parsePrettyName(osRelease: string): string | undefined {
+  return osRelease.match(/^PRETTY_NAME="?([^"\n]*)"?$/m)?.[1] || undefined;
+}
+
+// WHY: the bot runs in Docker, so si.osInfo() reports the container (container-ID
+// hostname, base-image distro). docker-compose mounts the host's files under /host;
+// fall back to the container values when they are absent (e.g. local dev).
+async function hostInfo(fallback: { hostname: string; distro: string }) {
+  const read = (path: string) => readFile(path, "utf8").catch(() => "");
+  const [hostname, osRelease] = await Promise.all([
+    read("/host/hostname"),
+    read("/host/os-release"),
+  ]);
+  return {
+    hostname: hostname.trim() || fallback.hostname,
+    distro: parsePrettyName(osRelease) || fallback.distro,
+  };
+}
 
 const command: Command = {
   name: "server",
@@ -20,6 +40,12 @@ const command: Command = {
     const msg = await message.reply("🔄 กำลังเก็บข้อมูล Server...");
 
     try {
+      // WHY: si.currentLoad() diffs /proc/stat against its previous call; the first
+      // call measures since boot (or since the last !!server run). Prime it, then
+      // sample over 500ms to get the actual current load.
+      await si.currentLoad();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       const [cpu, cpuInfo, mem, osInfo, disk, load] = await Promise.all([
         si.cpuCurrentSpeed(),
         si.cpu(),
@@ -28,6 +54,7 @@ const command: Command = {
         si.fsSize(),
         si.currentLoad(),
       ]);
+      const host = await hostInfo(osInfo);
 
       const uptime = si.time().uptime;
       const processUptime = process.uptime();
@@ -46,8 +73,9 @@ const command: Command = {
         total: number,
         length: number
       ): string {
-        const percent = (current / total) * 100;
-        const filled = Math.round((percent / 100) * length);
+        // Clamp: a negative or >length fill would make String.repeat throw RangeError.
+        const ratio = total > 0 ? Math.min(Math.max(current / total, 0), 1) : 0;
+        const filled = Math.round(ratio * length);
         const empty = length - filled;
         return "█".repeat(filled) + "░".repeat(empty);
       }
@@ -55,6 +83,9 @@ const command: Command = {
       const ramUsed = (mem.active / 1024 / 1024 / 1024).toFixed(2);
       const ramTotal = (mem.total / 1024 / 1024 / 1024).toFixed(2);
       const cpuPercent = load.currentLoad.toFixed(1);
+      // WHY: host RAM above is the whole machine; show the bot's own usage separately
+      // since the container is capped (docker-compose memory limit).
+      const botRssMb = (process.memoryUsage().rss / 1024 / 1024).toFixed(0);
 
       const diskUsed = (disk[0]?.used || 0) / 1024 / 1024 / 1024;
       const diskTotal = (disk[0]?.size || 1) / 1024 / 1024 / 1024;
@@ -66,7 +97,7 @@ const command: Command = {
       const embed = new EmbedBuilder()
         .setTitle(`🖥️ Server Status`)
         .setColor(0x00ff88)
-        .setDescription(`**${osInfo.hostname}** • ${osInfo.distro}`)
+        .setDescription(`**${host.hostname}** • ${host.distro}`)
         .addFields(
           {
             name: "💻 CPU",
@@ -80,12 +111,12 @@ const command: Command = {
             inline: false,
           },
           {
-            name: "🧠 RAM",
+            name: "🧠 RAM (host)",
             value: `\`\`\`${ramUsed} / ${ramTotal} GB\n${createProgressBar(
               mem.active,
               mem.total,
               10
-            )}\`\`\``,
+            )}\nBot process: ${botRssMb} MB\`\`\``,
             inline: false,
           },
           {
