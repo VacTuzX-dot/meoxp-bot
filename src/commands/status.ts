@@ -3,8 +3,14 @@ import { Message, EmbedBuilder } from "discord.js";
 import * as si from "systeminformation";
 import { ExtendedClient, Command } from "../types";
 
+// os-release values are shell-style: double-quoted (with backslash escapes),
+// single-quoted, or bare.
 export function parsePrettyName(osRelease: string): string | undefined {
-  return osRelease.match(/^PRETTY_NAME="?([^"\n]*)"?$/m)?.[1] || undefined;
+  const m = osRelease.match(
+    /^PRETTY_NAME=(?:"((?:[^"\\\n]|\\.)*)"|'([^'\n]*)'|([^\s"']*))\s*$/m,
+  );
+  const value = m?.[1]?.replace(/\\(.)/g, "$1") ?? m?.[2] ?? m?.[3];
+  return value || undefined;
 }
 
 // WHY: the bot runs in Docker, so si.osInfo() reports the container (container-ID
@@ -43,6 +49,9 @@ const command: Command = {
       // WHY: si.currentLoad() diffs /proc/stat against its previous call; the first
       // call measures since boot (or since the last !!server run). Prime it, then
       // sample over 500ms to get the actual current load.
+      // ponytail: si keeps one module-level baseline, so two !!server runs within
+      // 500ms skew each other's reading. Owner-only command → accepted; share one
+      // in-flight sample promise if anything else starts calling currentLoad().
       await si.currentLoad();
       await new Promise((resolve) => setTimeout(resolve, 500));
 

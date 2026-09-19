@@ -22,3 +22,10 @@
 - Changed: status.ts, docker-compose.yml, tests/status.test.ts.
 - Remaining: merge PR → CI deploys (`docker compose up -d` recreates bot with the new mounts); verify `!!server` shows `meox` / Debian 13.
 - Mistakes & dead ends: none.
+
+## Copilot review (PR #6)
+
+- **Escaped quotes in os-release** — accepted. Verified: old regex returned `undefined` (not truncated as claimed) → fell back to container distro. New parser handles double-quoted with `\` escapes, single-quoted, bare. +2 tests; parses real host file → `Debian GNU/Linux 13 (trixie)`.
+- **Serialize overlapping currentLoad()** — declined, `ponytail:` comment added. Only caller is owner-only `!!server`; race needs two runs within 500ms and only skews one reading. Upgrade path: shared in-flight sample promise if another caller appears.
+- **Result:** tests 21/21, typecheck OK, no new lint warnings.
+- **Lesson:** reproduce a reviewer's claimed failure before fixing — the symptom here differed from the description (fallback, not truncation), which changes how severe it is.
