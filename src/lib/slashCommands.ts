@@ -6,6 +6,7 @@ import {
   Message,
   PermissionsBitField,
   SlashCommandBuilder,
+  MessageFlags,
 } from "discord.js";
 import { ExtendedClient } from "../types";
 import { autoRoleManager } from "./AutoRoleManager";
@@ -141,7 +142,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
   ) {
     await interaction.reply({
       content: "❌ คุณไม่มีสิทธิ์ (Administrator) ในการใช้คำสั่งนี้ค่ะ",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -155,7 +156,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
       content: success
         ? "✅ ปิด Auto Role เรียบร้อยแล้วค่ะ"
         : "ℹ️ เซิร์ฟเวอร์นี้ยังไม่ได้ตั้งค่า Auto Role ไว้",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -167,7 +168,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
       content: config
         ? `📌 Auto Role ปัจจุบัน: <@&${config.roleId}>`
         : "ℹ️ เซิร์ฟเวอร์นี้ยังไม่มีการตั้งค่า Auto Role เลยค่ะ",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -180,7 +181,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
       await interaction.reply({
         content:
           "❌ บอทไม่มีสิทธิ์ Manage Roles กรุณาให้สิทธิ์แก่บอทในเซิร์ฟเวอร์ก่อนใช้งาน!",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -189,7 +190,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
       await interaction.reply({
         content:
           "❌ ไม่สามารถจ่ายยศนี้ได้ เนื่องจากยศของบอทอยู่ต่ำกว่าหรือเท่ากับยศเป้าหมาย",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
@@ -204,7 +205,7 @@ async function handleAutoRoleSlash(interaction: ChatInputCommandInteraction) {
     content: success
       ? `✅ ตั้งค่า Auto Role สำเร็จแล้วค่ะ สมาชิกใหม่จะได้รับยศ <@&${role.id}> อัตโนมัติ`
       : "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลลง NoSQL ค่ะ",
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -218,7 +219,7 @@ async function handleGoldSetupSlash(
   ) {
     await interaction.reply({
       content: "❌ คุณไม่มีสิทธิ์ (Administrator) ในการใช้คำสั่งนี้ค่ะ",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -231,7 +232,7 @@ async function handleGoldSetupSlash(
       content: success
         ? "✅ ยกเลิกการแจ้งเตือนราคาทองเรียบร้อยแล้วค่ะ"
         : "ℹ️ เซิร์ฟเวอร์นี้ยังไม่ได้ตั้งค่าการแจ้งเตือนราคาทองไว้",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -241,12 +242,12 @@ async function handleGoldSetupSlash(
     if (!config) {
       await interaction.reply({
         content: "ℹ️ ยังไม่ได้ตั้งค่าการแจ้งเตือนราคาทองในเซิร์ฟเวอร์นี้ค่ะ\nใช้ `/setupgold set` เพื่อตั้งค่า",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const price = await fetchGoldPrice();
     const priceText = price
@@ -270,7 +271,7 @@ async function handleGoldSetupSlash(
   if (channel.type !== ChannelType.GuildText) {
     await interaction.reply({
       content: "❌ กรุณาเลือกช่องข้อความ (Text Channel) เท่านั้นค่ะ",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -286,7 +287,7 @@ async function handleGoldSetupSlash(
     content: success
       ? `✅ ตั้งค่าแจ้งเตือนราคาทองคำ 96.5% สำเร็จค่ะ\nจะส่งการแจ้งเตือนไปที่ <#${channel.id}>${roleText} เมื่อราคาเปลี่ยนแปลง`
       : "❌ เกิดข้อผิดพลาดในการบันทึกข้อมูลค่ะ",
-    ephemeral: true,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -312,7 +313,7 @@ const FLASH_TRACKING_ERROR_MESSAGES: Record<FlashTrackingErrorCode, string> = {
 };
 
 async function handleFlashTrackSlash(interaction: ChatInputCommandInteraction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const result = await fetchFlashTracking(
@@ -365,7 +366,7 @@ function truncate(value: string, maxLength: number): string {
 async function handlePostTrackSlash(
   interaction: ChatInputCommandInteraction,
 ) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     const result = await fetchThailandPostTracking(

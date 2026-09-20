@@ -6,6 +6,7 @@ import {
   ButtonStyle,
   ButtonInteraction,
   ComponentType,
+  MessageFlags,
 } from "discord.js";
 import { ExtendedClient, Command, Song } from "../types";
 import { trackToSong, formatDuration } from "../lib/MoodenglinkManager";
@@ -195,7 +196,7 @@ const command: Command = {
             player.queue.shuffle();
             await interaction.reply({
               content: "🔀 Shuffled!",
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
             await reply.edit({
               embeds: [createEmbed(currentPage)],
@@ -205,14 +206,14 @@ const command: Command = {
           }
           await interaction.reply({
             content: "❌ ไม่พอสับค่ะ~",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           return;
         case "queue_clear":
           player.queue.clear();
           await interaction.reply({
             content: "🗑️ ล้าง Queue แล้วค่ะ~",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           await reply.edit({
             embeds: [createEmbed(0)],
