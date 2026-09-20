@@ -5,6 +5,7 @@ import {
   Message,
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
+  MessageFlags,
 } from "discord.js";
 
 export const helpCategories: Record<
@@ -122,7 +123,7 @@ export function attachHelpCollector(reply: Message<boolean>, ownerId: string) {
     if (interaction.user.id !== ownerId) {
       await interaction.reply({
         content: "❌ นี่ไม่ใช่เมนูของคุณค่ะ",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

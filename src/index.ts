@@ -1,4 +1,10 @@
-import { Client, GatewayIntentBits, Collection, Partials } from "discord.js";
+import {
+  Client,
+  Collection,
+  Events,
+  GatewayIntentBits,
+  Partials,
+} from "discord.js";
 import { join } from "path";
 import { readdirSync } from "fs";
 import "dotenv/config";
@@ -33,7 +39,7 @@ client.commands = new Collection<string, Command>();
 // Initialize Moodenglink (Lavalink)
 client.manager = createManager(client);
 client.on("raw", (d) => client.manager.updateVoiceState(d));
-client.once("ready", () => client.manager.init(client.user!.id));
+client.once(Events.ClientReady, () => client.manager.init(client.user!.id));
 
 // Aliases collection
 const aliases = new Collection<string, string>();

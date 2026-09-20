@@ -6,6 +6,7 @@ import {
   ButtonStyle,
   ButtonInteraction,
   ComponentType,
+  MessageFlags,
 } from "discord.js";
 import { ExtendedClient, Command } from "../types";
 import {
@@ -126,7 +127,7 @@ const command: Command = {
       if (!member?.voice.channel) {
         await interaction.reply({
           content: "❌ คุณต้องอยู่ในห้องเสียงค่ะ~",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -135,7 +136,7 @@ const command: Command = {
       if (!currentPlayer || !currentPlayer.queue.current) {
         await interaction.reply({
           content: "❌ ไม่มีเพลงที่กำลังเล่นค่ะ~",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -148,7 +149,7 @@ const command: Command = {
             content: isPaused
               ? "▶️ เล่นต่อแล้วค่ะ~"
               : "⏸️ หยุดชั่วคราวแล้วค่ะ~",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           break;
         }
@@ -157,7 +158,7 @@ const command: Command = {
           await currentPlayer.skip();
           await interaction.reply({
             content: "⏭️ ข้ามเพลงแล้วค่ะ~",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           break;
 
@@ -165,7 +166,7 @@ const command: Command = {
           await currentPlayer.stop();
           await interaction.reply({
             content: "⏹️ หยุดเล่นและล้าง Queue แล้วค่ะ~",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           break;
 
@@ -174,12 +175,12 @@ const command: Command = {
             currentPlayer.queue.shuffle();
             await interaction.reply({
               content: "🔀 สับ Queue แล้วค่ะ~",
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           } else {
             await interaction.reply({
               content: "❌ Queue มีไม่พอสับค่ะ~",
-              ephemeral: true,
+              flags: MessageFlags.Ephemeral,
             });
           }
           break;
@@ -193,7 +194,7 @@ const command: Command = {
           ];
           await interaction.reply({
             content: `${modes[currentPlayer.repeatMode]}`,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           break;
         }
@@ -215,7 +216,7 @@ const command: Command = {
           }
           await interaction.reply({
             content: queueText,
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
           break;
         }
